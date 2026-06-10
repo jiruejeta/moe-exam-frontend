@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+// Use production URL for deployment
+const API_URL = 'https://moe-36gy.onrender.com/api';
+
 const axiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+  baseURL: API_URL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
