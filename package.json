@@ -9,38 +9,22 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "axios": "^1.17.0",
-    "lucide-react": "^0.454.0",
-    "next": "^14.2.15",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-hot-toast": "^2.6.0"
+    "autoprefixer": "^10.4.16",
+    "axios": "^1.16.1",
+    "lucide-react": "^1.14.0",
+    "next": "^15.5.18",
+    "postcss": "^8.4.31",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-hot-toast": "^2.6.0",
+    "tailwindcss": "^3.4.1"
   },
   "devDependencies": {
-    "@types/node": "^20.19.42",
-    "@types/react": "^18.3.31",
-    "@types/react-dom": "^18.3.7",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.15",
-    "postcss": "^8.4.31",
-    "tailwindcss": "^3.4.17",
-    "typescript": "^5.9.3"
-  },
-  "description": "A complete secure online examination portal with admin and student roles, anti-cheating protections, and automated exam management.",
-  "main": "next.config.js",
-  "directories": {
-    "lib": "lib"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/jiruejeta/moe-exam-frontend.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/jiruejeta/moe-exam-frontend/issues"
-  },
-  "homepage": "https://github.com/jiruejeta/moe-exam-frontend#readme"
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.18",
+    "typescript": "^5"
+  }
 }
