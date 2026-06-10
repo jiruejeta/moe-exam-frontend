@@ -13,36 +13,43 @@ export default function StudentLogin() {
     password: '',
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      const response = await axios.post('/auth/student/login', formData);
-      toast.success('Login successful!');
-      
-      // Store complete student info including all fields
-      const studentData = {
-        fullName: response.data.student.fullName,
-        username: response.data.student.username,
-        department: response.data.student.department,
-        institution: response.data.student.institution,
-        institutionId: response.data.student.institutionId,
-        examCentre: response.data.student.examCentre,
-        enrollmentType: response.data.student.enrollmentType,
-        gender: response.data.student.gender,
-        blindStatus: response.data.student.blindStatus || 'No',
-      };
-      
-      localStorage.setItem('studentInfo', JSON.stringify(studentData));
-      router.push('/student/dashboard');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
 
+  try {
+    const response = await axios.post(
+      '/auth/student/login',
+      formData,
+      { withCredentials: true }
+    );
+
+    toast.success('Login successful!');
+
+    const student = response.data?.student;
+
+    const studentData = {
+      fullName: student?.fullName,
+      username: student?.username,
+      department: student?.department,
+      institution: student?.institution,
+      institutionId: student?.institutionId,
+      examCentre: student?.examCentre,
+      enrollmentType: student?.enrollmentType,
+      gender: student?.gender,
+      blindStatus: student?.blindStatus || 'No',
+    };
+
+    localStorage.setItem('studentInfo', JSON.stringify(studentData));
+    router.push('/student/dashboard');
+
+  } catch (error: any) {
+    console.error(error);
+    toast.error(error.response?.data?.message || 'Login failed');
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="w-[400px]">
