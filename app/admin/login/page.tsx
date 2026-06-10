@@ -18,10 +18,12 @@ export default function AdminLogin() {
     setLoading(true);
     
     try {
+      // Make sure this is the correct endpoint
       const response = await axios.post('/auth/admin/login', formData);
       toast.success('Admin login successful!');
       router.push('/admin/dashboard');
     } catch (error: any) {
+      console.error('Login error:', error);
       toast.error(error.response?.data?.message || 'Login failed');
     } finally {
       setLoading(false);
