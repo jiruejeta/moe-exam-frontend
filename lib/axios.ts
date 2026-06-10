@@ -1,14 +1,14 @@
 import axios from 'axios';
 
 const axiosInstance = axios.create({
-  baseURL: 'http://localhost:5000/api',  // Use full URL instead of env variable for now
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add request interceptor for debugging
+// Request interceptor
 axiosInstance.interceptors.request.use(
   (config) => {
     console.log('Making request to:', config.url);
@@ -19,10 +19,10 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-// Add response interceptor for debugging
+// Response interceptor
 axiosInstance.interceptors.response.use(
   (response) => {
-    console.log('Response:', response.status, response.data);
+    console.log('Response:', response.status);
     return response;
   },
   (error) => {
