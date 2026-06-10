@@ -5,10 +5,6 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'cte.moe.gov.et',
-      },
-      {
-        protocol: 'https',
         hostname: '**',
       },
     ],
