@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import axios from '@/lib/axios';
 
 interface StudentInfo {
+  id: string;
   fullName: string;
   username: string;
   department: string;
@@ -56,6 +57,7 @@ export default function StudentDashboard() {
     
     try {
       const parsedStudent = JSON.parse(studentInfo);
+      console.log('Student data loaded:', parsedStudent); // Debug log
       setStudent(parsedStudent);
     } catch (error) {
       console.error('Error parsing student info:', error);
@@ -132,9 +134,9 @@ export default function StudentDashboard() {
       
       const { attempt, totalQuestions, examDuration } = response.data;
       
-      // Save the REAL attemptId from the database (not a temp one)
+      // Save the REAL attemptId from the database
       localStorage.setItem('examAttempt', JSON.stringify({
-        attemptId: attempt._id,  // This is the real MongoDB ObjectId
+        attemptId: attempt._id,
         courseCode: selectedCourse.code,
         courseName: selectedCourse.name,
         totalQuestions: totalQuestions,
@@ -196,6 +198,7 @@ export default function StudentDashboard() {
 
               <div className="p-4">
                 <div className="flex gap-6">
+                  {/* Avatar */}
                   <div className="flex-shrink-0">
                     <div className="w-20 h-20 bg-gray-300 rounded-full flex items-center justify-center">
                       <svg className="w-10 h-10 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
@@ -204,27 +207,35 @@ export default function StudentDashboard() {
                     </div>
                   </div>
 
+                  {/* Student Information Table */}
                   <div className="flex-1">
                     <table className="w-full">
                       <tbody>
+                        {/* Row 1: Full Name & Institution */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 w-1/3 font-semibold text-gray-700 text-sm">Full Name</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.fullName || 'N/A'}</td>
                           <td className="py-2 w-1/3 font-semibold text-gray-700 text-sm">Institution</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.institution || 'N/A'}</td>
                         </tr>
+                        
+                        {/* Row 2: Blind Status & Institution ID */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Is Blind / Is Deaf</td>
-                          <td className="py-2 text-gray-800 text-sm">No / No</td>
+                          <td className="py-2 text-gray-800 text-sm">{student?.blindStatus || 'No'} / No</td>
                           <td className="py-2 font-semibold text-gray-700 text-sm">Institution ID</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.institutionId || 'N/A'}</td>
                         </tr>
+                        
+                        {/* Row 3: Exam Center & Enrollment Type */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Exam Center</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.examCentre || 'N/A'}</td>
                           <td className="py-2 font-semibold text-gray-700 text-sm">Enrollment Type</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.enrollmentType || 'N/A'}</td>
                         </tr>
+                        
+                        {/* Row 4: Department & Gender */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Department</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.department || 'N/A'}</td>
