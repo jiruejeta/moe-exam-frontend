@@ -13,43 +13,45 @@ export default function StudentLogin() {
     password: '',
   });
 
- const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
 
-  try {
-    const response = await axios.post(
-      '/auth/student/login',
-      formData,
-      { withCredentials: true }
-    );
+    try {
+      const response = await axios.post('/auth/student/login', formData, { withCredentials: true });
 
-    toast.success('Login successful!');
+      toast.success('Login successful!');
 
-    const student = response.data?.student;
+      const student = response.data?.student;
 
-    const studentData = {
-      fullName: student?.fullName,
-      username: student?.username,
-      department: student?.department,
-      institution: student?.institution,
-      institutionId: student?.institutionId,
-      examCentre: student?.examCentre,
-      enrollmentType: student?.enrollmentType,
-      gender: student?.gender,
-      blindStatus: student?.blindStatus || 'No',
-    };
+      // Store ALL student fields including examCentre, institutionId, enrollmentType
+      const studentData = {
+        id: student?.id || '',
+        username: student?.username || '',
+        fullName: student?.fullName || '',
+        department: student?.department || '',
+        blindStatus: student?.blindStatus || 'No',
+        examCentre: student?.examCentre || 'Not specified',
+        institution: student?.institution || 'Not specified',
+        institutionId: student?.institutionId || 'Not specified',
+        enrollmentType: student?.enrollmentType || 'Regular',
+        gender: student?.gender || 'Not specified',
+      };
 
-    localStorage.setItem('studentInfo', JSON.stringify(studentData));
-    router.push('/student/dashboard');
+      // Save to localStorage
+      localStorage.setItem('studentInfo', JSON.stringify(studentData));
+      
+      // Redirect to dashboard
+      router.push('/student/dashboard');
 
-  } catch (error: any) {
-    console.error(error);
-    toast.error(error.response?.data?.message || 'Login failed');
-  } finally {
-    setLoading(false);
-  }
-};
+    } catch (error: any) {
+      console.error('Login error:', error);
+      toast.error(error.response?.data?.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="w-[400px]">
@@ -63,6 +65,7 @@ export default function StudentLogin() {
               />
             </div>
             <h1 className="text-[#0d3b8e] text-2xl font-bold">MoE - Exit Exam</h1>
+            <p className="text-gray-500 text-sm mt-1">Student Login Portal</p>
           </div>
 
           <div className="mt-8">
