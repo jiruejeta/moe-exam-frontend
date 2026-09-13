@@ -11,7 +11,9 @@ import {
   HelpCircle, 
   BarChart3, 
   LogOut,
-  ChevronRight
+  ChevronRight,
+  UserPlus,
+  FileQuestion
 } from 'lucide-react';
 
 interface Stats {
@@ -32,10 +34,11 @@ export default function AdminDashboard() {
     totalResults: 0,
   });
   const [adminName, setAdminName] = useState('Admin');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStats();
     checkAuth();
+    fetchStats();
   }, []);
 
   const checkAuth = async () => {
@@ -49,23 +52,54 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      const [students, departments, courses, questions, results] = await Promise.all([
-        axios.get('/students'),
-        axios.get('/departments'),
-        axios.get('/courses'),
-        axios.get('/questions/course/ALL'),
-        axios.get('/results'),
-      ]);
+      // Fetch students
+      const studentsRes = await axios.get('/students');
+      const students = studentsRes.data;
+      
+      // Fetch departments - handle hierarchical data
+      const deptRes = await axios.get('/departments');
+      let departments = deptRes.data;
+      
+      // Count all departments (including sub-departments)
+      let totalDepartments = 0;
+      const countAll = (depts: any[]) => {
+        depts.forEach((d: any) => {
+          totalDepartments++;
+          if (d.children) {
+            countAll(d.children);
+          }
+        });
+      };
+      countAll(departments);
+      
+      // Fetch courses
+      const coursesRes = await axios.get('/courses');
+      
+      // Fetch questions
+      const questionsRes = await axios.get('/questions/course/ALL');
+      
+      // Fetch results
+      const resultsRes = await axios.get('/results');
       
       setStats({
-        totalStudents: students.data.length,
-        totalDepartments: departments.data.length,
-        totalCourses: courses.data.length,
-        totalQuestions: questions.data.length || 0,
-        totalResults: results.data.length,
+        totalStudents: students.length || 0,
+        totalDepartments: totalDepartments || 0,
+        totalCourses: coursesRes.data.length || 0,
+        totalQuestions: questionsRes.data.length || 0,
+        totalResults: resultsRes.data.length || 0,
       });
     } catch (error) {
-      console.error('Failed to fetch stats');
+      console.error('Failed to fetch stats:', error);
+      // Set default values to prevent UI errors
+      setStats({
+        totalStudents: 0,
+        totalDepartments: 0,
+        totalCourses: 0,
+        totalQuestions: 0,
+        totalResults: 0,
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -86,6 +120,16 @@ export default function AdminDashboard() {
     { title: 'Results', icon: BarChart3, href: '/admin/results', color: 'bg-red-500', count: stats.totalResults },
   ];
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="ml-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Sidebar */}
@@ -96,31 +140,53 @@ export default function AdminDashboard() {
         </div>
         
         <nav className="mt-6">
-          {menuItems.map((item) => (
-            <button
-              key={item.title}
-              onClick={() => router.push(item.href)}
-              className="w-full flex items-center justify-between px-6 py-3 hover:bg-gray-800 transition group"
-            >
-              <div className="flex items-center gap-3">
-                <item.icon size={20} />
-                <span>{item.title}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {item.count > 0 && (
-                  <span className="text-xs bg-gray-700 px-2 py-1 rounded-full">
-                    {item.count}
-                  </span>
-                )}
-                <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition" />
-              </div>
-            </button>
-          ))}
+          <button 
+            onClick={() => router.push('/admin/dashboard')} 
+            className="w-full text-left px-6 py-3 bg-gray-800 transition flex items-center gap-3"
+          >
+            <BarChart3 size={20} />
+            Dashboard
+          </button>
+          <button 
+            onClick={() => router.push('/admin/students')} 
+            className="w-full text-left px-6 py-3 hover:bg-gray-800 transition flex items-center gap-3"
+          >
+            <Users size={20} />
+            Students
+          </button>
+          <button 
+            onClick={() => router.push('/admin/departments')} 
+            className="w-full text-left px-6 py-3 hover:bg-gray-800 transition flex items-center gap-3"
+          >
+            <Building2 size={20} />
+            Departments
+          </button>
+          <button 
+            onClick={() => router.push('/admin/courses')} 
+            className="w-full text-left px-6 py-3 hover:bg-gray-800 transition flex items-center gap-3"
+          >
+            <BookOpen size={20} />
+            Courses
+          </button>
+          <button 
+            onClick={() => router.push('/admin/questions')} 
+            className="w-full text-left px-6 py-3 hover:bg-gray-800 transition flex items-center gap-3"
+          >
+            <HelpCircle size={20} />
+            Questions
+          </button>
+          <button 
+            onClick={() => router.push('/admin/results')} 
+            className="w-full text-left px-6 py-3 hover:bg-gray-800 transition flex items-center gap-3"
+          >
+            <BarChart3 size={20} />
+            Results
+          </button>
         </nav>
         
         <div className="absolute bottom-0 left-0 right-0 p-6">
-          <button
-            onClick={handleLogout}
+          <button 
+            onClick={handleLogout} 
             className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700 transition"
           >
             <LogOut size={18} />
@@ -153,26 +219,49 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        {/* Recent Activity Placeholder */}
+        {/* Quick Actions */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               onClick={() => router.push('/admin/students')}
               className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition"
             >
-              <Users className="mx-auto mb-2 text-blue-500" size={32} />
-              <p className="font-semibold">Add New Student</p>
+              <UserPlus className="mx-auto mb-2 text-blue-500" size={32} />
+              <p className="font-semibold text-gray-800">Add New Student</p>
               <p className="text-sm text-gray-500">Register students manually</p>
             </button>
             <button
               onClick={() => router.push('/admin/questions')}
               className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-yellow-500 hover:bg-yellow-50 transition"
             >
-              <HelpCircle className="mx-auto mb-2 text-yellow-500" size={32} />
-              <p className="font-semibold">Upload Questions</p>
+              <FileQuestion className="mx-auto mb-2 text-yellow-500" size={32} />
+              <p className="font-semibold text-gray-800">Upload Questions</p>
               <p className="text-sm text-gray-500">Add exam questions in bulk</p>
             </button>
+          </div>
+        </div>
+
+        {/* Recent Activity (Optional) */}
+        <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">System Overview</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-gray-500">Total Students</p>
+              <p className="text-2xl font-bold text-gray-800">{stats.totalStudents}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-gray-500">Total Departments</p>
+              <p className="text-2xl font-bold text-gray-800">{stats.totalDepartments}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-gray-500">Total Courses</p>
+              <p className="text-2xl font-bold text-gray-800">{stats.totalCourses}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-gray-500">Questions Available</p>
+              <p className="text-2xl font-bold text-gray-800">{stats.totalQuestions}</p>
+            </div>
           </div>
         </div>
       </div>
