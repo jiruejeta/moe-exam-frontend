@@ -23,9 +23,6 @@ interface Student {
   classId: string;
   departmentName: string;
   className: string;
-  examCentre: string;
-  institution: string;
-  institutionId: string;
   enrollmentType: string;
   gender: string;
   blindStatus: string;
@@ -37,45 +34,33 @@ type Mode = 'single' | 'bulk';
 export default function StudentsPage() {
   const router = useRouter();
 
-  // ---- data ----
   const [students, setStudents] = useState<Student[]>([]);
   const [mainDepartments, setMainDepartments] = useState<Department[]>([]);
   const [allClasses, setAllClasses] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ---- filters ----
   const [filterDeptId, setFilterDeptId] = useState('');
   const [filterClassId, setFilterClassId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // ---- modal ----
   const [showModal, setShowModal] = useState(false);
   const [mode, setMode] = useState<Mode>('single');
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // shared "where to add" selection
   const [targetDeptId, setTargetDeptId] = useState('');
   const [targetClassId, setTargetClassId] = useState('');
 
-  // single form
   const [formData, setFormData] = useState({
     username: '',
     password: '',
     fullName: '',
     blindStatus: 'No',
-    examCentre: '',
-    institution: '',
-    institutionId: '',
     enrollmentType: 'Regular',
     gender: 'Male',
   });
 
-  // bulk form
   const [bulkText, setBulkText] = useState('');
   const [bulkDefaults, setBulkDefaults] = useState({
-    examCentre: '',
-    institution: '',
-    institutionId: '',
     enrollmentType: 'Regular',
     blindStatus: 'No',
   });
@@ -131,9 +116,7 @@ export default function StudentsPage() {
     }
   };
 
-  // ---------- helpers ----------
-  const classesForDept = (deptId: string) =>
-    allClasses.filter((c) => c.parentId === deptId);
+  const classesForDept = (deptId: string) => allClasses.filter((c) => c.parentId === deptId);
 
   const resetForms = () => {
     setEditingStudent(null);
@@ -144,20 +127,11 @@ export default function StudentsPage() {
       password: '',
       fullName: '',
       blindStatus: 'No',
-      examCentre: '',
-      institution: '',
-      institutionId: '',
       enrollmentType: 'Regular',
       gender: 'Male',
     });
     setBulkText('');
-    setBulkDefaults({
-      examCentre: '',
-      institution: '',
-      institutionId: '',
-      enrollmentType: 'Regular',
-      blindStatus: 'No',
-    });
+    setBulkDefaults({ enrollmentType: 'Regular', blindStatus: 'No' });
     setMode('single');
   };
 
@@ -176,16 +150,12 @@ export default function StudentsPage() {
       password: '',
       fullName: s.fullName,
       blindStatus: s.blindStatus || 'No',
-      examCentre: s.examCentre || '',
-      institution: s.institution || '',
-      institutionId: s.institutionId || '',
       enrollmentType: s.enrollmentType || 'Regular',
       gender: s.gender || 'Male',
     });
     setShowModal(true);
   };
 
-  // ---------- single submit ----------
   const submitSingle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetDeptId || !targetClassId) {
@@ -197,11 +167,7 @@ export default function StudentsPage() {
       return;
     }
 
-    const payload: any = {
-      ...formData,
-      departmentId: targetDeptId,
-      classId: targetClassId,
-    };
+    const payload: any = { ...formData, departmentId: targetDeptId, classId: targetClassId };
     if (editingStudent && !formData.password) delete payload.password;
 
     try {
@@ -220,7 +186,6 @@ export default function StudentsPage() {
     }
   };
 
-  // ---------- bulk submit ----------
   const submitBulk = async () => {
     if (!targetDeptId || !targetClassId) {
       toast.error('Select department and class');
@@ -231,10 +196,7 @@ export default function StudentsPage() {
       return;
     }
 
-    // Expected CSV header:
-    // username,password,fullName,gender,examCentre,institution,institutionId,enrollmentType,blindStatus
-    // Only username, password, fullName, gender are required per row;
-    // anything missing falls back to the bulkDefaults fields above.
+    // Format: username,password,fullName,gender,enrollmentType,blindStatus
     const lines = bulkText.trim().split(/\r?\n/).filter(Boolean);
     const students: any[] = [];
     const errors: string[] = [];
@@ -245,22 +207,19 @@ export default function StudentsPage() {
         errors.push(`Row ${i + 1}: needs at least username,password,fullName,gender`);
         return;
       }
-      const [username, password, fullName, gender, examCentre, institution, institutionId, enrollmentType, blindStatus] = cells;
+      const [username, password, fullName, gender, enrollmentType, blindStatus] = cells;
       students.push({
         username,
         password,
         fullName,
         gender: gender || 'Male',
-        examCentre: examCentre || bulkDefaults.examCentre,
-        institution: institution || bulkDefaults.institution,
-        institutionId: institutionId || bulkDefaults.institutionId,
         enrollmentType: enrollmentType || bulkDefaults.enrollmentType,
         blindStatus: blindStatus || bulkDefaults.blindStatus,
       });
     });
 
     if (students.length === 0) {
-      toast.error('No valid rows found. ' + errors.join(' | '));
+      toast.error('No valid rows. ' + errors.join(' | '));
       return;
     }
 
@@ -301,8 +260,7 @@ export default function StudentsPage() {
     const q = searchTerm.toLowerCase();
     return (
       s.fullName?.toLowerCase().includes(q) ||
-      s.username?.toLowerCase().includes(q) ||
-      s.institutionId?.toLowerCase().includes(q)
+      s.username?.toLowerCase().includes(q)
     );
   });
 
@@ -338,7 +296,6 @@ export default function StudentsPage() {
       </div>
 
       <div className="ml-64 p-8">
-        {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Students</h1>
@@ -353,42 +310,23 @@ export default function StudentsPage() {
         <div className="bg-white rounded-lg shadow-md p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Department</label>
-            <select
-              value={filterDeptId}
-              onChange={(e) => { setFilterDeptId(e.target.value); setFilterClassId(''); }}
-              className="w-full px-3 py-2 border rounded-lg"
-            >
+            <select value={filterDeptId} onChange={(e) => { setFilterDeptId(e.target.value); setFilterClassId(''); }} className="w-full px-3 py-2 border rounded-lg">
               <option value="">All Departments</option>
-              {mainDepartments.map((d) => (
-                <option key={d._id} value={d._id}>{d.name} ({d.code})</option>
-              ))}
+              {mainDepartments.map((d) => <option key={d._id} value={d._id}>{d.name} ({d.code})</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Class</label>
-            <select
-              value={filterClassId}
-              onChange={(e) => setFilterClassId(e.target.value)}
-              disabled={!filterDeptId}
-              className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-100"
-            >
+            <select value={filterClassId} onChange={(e) => setFilterClassId(e.target.value)} disabled={!filterDeptId} className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-100">
               <option value="">All Classes</option>
-              {classesForDept(filterDeptId).map((c) => (
-                <option key={c._id} value={c._id}>{c.name} ({c.code})</option>
-              ))}
+              {classesForDept(filterDeptId).map((c) => <option key={c._id} value={c._id}>{c.name} ({c.code})</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Name, username, or ID"
-                className="w-full pl-9 pr-3 py-2 border rounded-lg"
-              />
+              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Name or username" className="w-full pl-9 pr-3 py-2 border rounded-lg" />
             </div>
           </div>
         </div>
@@ -403,7 +341,6 @@ export default function StudentsPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Institution ID</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gender</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Blind</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -411,7 +348,7 @@ export default function StudentsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {visibleStudents.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No students found</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No students found</td></tr>
                 ) : (
                   visibleStudents.map((s) => (
                     <tr key={s._id} className="hover:bg-gray-50">
@@ -421,7 +358,6 @@ export default function StudentsPage() {
                       <td className="px-4 py-3">
                         <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{s.className}</span>
                       </td>
-                      <td className="px-4 py-3">{s.institutionId}</td>
                       <td className="px-4 py-3">{s.gender}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded ${s.blindStatus === 'Yes' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-700'}`}>
@@ -446,66 +382,40 @@ export default function StudentsPage() {
       {/* MODAL */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto py-8">
-          <div className="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">
-                {editingStudent ? 'Edit Student' : 'Add Student'}
-              </h2>
+              <h2 className="text-2xl font-bold">{editingStudent ? 'Edit Student' : 'Add Student'}</h2>
               <button onClick={() => { setShowModal(false); resetForms(); }} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
             </div>
 
-            {/* Where: department + class (shared for both modes) */}
             <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
               <div>
                 <label className="block text-sm font-medium mb-1">Department *</label>
-                <select
-                  value={targetDeptId}
-                  onChange={(e) => { setTargetDeptId(e.target.value); setTargetClassId(''); }}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  required
-                >
+                <select value={targetDeptId} onChange={(e) => { setTargetDeptId(e.target.value); setTargetClassId(''); }} className="w-full px-3 py-2 border rounded-lg" required>
                   <option value="">Select Department</option>
-                  {mainDepartments.map((d) => (
-                    <option key={d._id} value={d._id}>{d.name} ({d.code})</option>
-                  ))}
+                  {mainDepartments.map((d) => <option key={d._id} value={d._id}>{d.name} ({d.code})</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Class *</label>
-                <select
-                  value={targetClassId}
-                  onChange={(e) => setTargetClassId(e.target.value)}
-                  disabled={!targetDeptId}
-                  className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-100"
-                  required
-                >
+                <select value={targetClassId} onChange={(e) => setTargetClassId(e.target.value)} disabled={!targetDeptId} className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-100" required>
                   <option value="">Select Class</option>
-                  {classesForDept(targetDeptId).map((c) => (
-                    <option key={c._id} value={c._id}>{c.name} ({c.code})</option>
-                  ))}
+                  {classesForDept(targetDeptId).map((c) => <option key={c._id} value={c._id}>{c.name} ({c.code})</option>)}
                 </select>
               </div>
             </div>
 
-            {/* Mode tabs (only when not editing) */}
             {!editingStudent && (
               <div className="flex gap-2 mb-6 border-b">
-                <button
-                  onClick={() => setMode('single')}
-                  className={`px-4 py-2 font-medium border-b-2 ${mode === 'single' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}
-                >
+                <button onClick={() => setMode('single')} className={`px-4 py-2 font-medium border-b-2 ${mode === 'single' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>
                   <Plus size={14} className="inline mr-1" /> Single
                 </button>
-                <button
-                  onClick={() => setMode('bulk')}
-                  className={`px-4 py-2 font-medium border-b-2 ${mode === 'bulk' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}
-                >
+                <button onClick={() => setMode('bulk')} className={`px-4 py-2 font-medium border-b-2 ${mode === 'bulk' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>
                   <Upload size={14} className="inline mr-1" /> Bulk
                 </button>
               </div>
             )}
 
-            {/* SINGLE */}
             {(mode === 'single' || editingStudent) && (
               <form onSubmit={submitSingle} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -526,18 +436,6 @@ export default function StudentsPage() {
                     <select value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
                       <option>Male</option><option>Female</option><option>Other</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Exam Centre</label>
-                    <input type="text" value={formData.examCentre} onChange={(e) => setFormData({ ...formData, examCentre: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Institution</label>
-                    <input type="text" value={formData.institution} onChange={(e) => setFormData({ ...formData, institution: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Institution ID</label>
-                    <input type="text" value={formData.institutionId} onChange={(e) => setFormData({ ...formData, institutionId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Enrollment Type</label>
@@ -561,41 +459,33 @@ export default function StudentsPage() {
               </form>
             )}
 
-            {/* BULK */}
             {mode === 'bulk' && !editingStudent && (
               <div className="space-y-4">
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
                   <p className="font-semibold mb-1">CSV format (one student per line):</p>
                   <code className="block bg-white rounded p-2 text-xs">
-                    username,password,fullName,gender,examCentre,institution,institutionId,enrollmentType,blindStatus
+                    username,password,fullName,gender,enrollmentType,blindStatus
                   </code>
-                  <p className="mt-1 text-xs">Only username, password, fullName, gender are required per row. Blanks fall back to the defaults below.</p>
+                  <p className="mt-1 text-xs">Only username, password, fullName, gender are required. Blanks fall back to defaults below.</p>
                 </div>
 
-                {/* defaults */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Default Exam Centre</label>
-                    <input type="text" value={bulkDefaults.examCentre} onChange={(e) => setBulkDefaults({ ...bulkDefaults, examCentre: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Default Institution</label>
-                    <input type="text" value={bulkDefaults.institution} onChange={(e) => setBulkDefaults({ ...bulkDefaults, institution: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Default Institution ID</label>
-                    <input type="text" value={bulkDefaults.institutionId} onChange={(e) => setBulkDefaults({ ...bulkDefaults, institutionId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
-                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Default Enrollment Type</label>
                     <select value={bulkDefaults.enrollmentType} onChange={(e) => setBulkDefaults({ ...bulkDefaults, enrollmentType: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
                       <option>Regular</option><option>Distance</option><option>Extension</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Default Blind Status</label>
+                    <select value={bulkDefaults.blindStatus} onChange={(e) => setBulkDefaults({ ...bulkDefaults, blindStatus: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                      <option>No</option><option>Yes</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Paste rows (one student per line)</label>
+                  <label className="block text-sm font-medium mb-1">Paste rows</label>
                   <textarea
                     value={bulkText}
                     onChange={(e) => setBulkText(e.target.value)}

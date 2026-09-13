@@ -24,9 +24,6 @@ interface StudentInfo {
   classId: string;
   departmentName: string;
   className: string;
-  institution: string;
-  institutionId: string;
-  examCentre: string;
   enrollmentType: string;
   gender: string;
   blindStatus: string;
@@ -303,50 +300,32 @@ export default function ExamPage() {
                   <div className="flex-1">
                     <table className="w-full">
                       <tbody>
-                        {/* Row 1 */}
+                        {/* Row 1 — Full Name + Department */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 w-1/3 font-semibold text-gray-700 text-sm">Full Name</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.fullName || 'N/A'}</td>
-                          <td className="py-2 w-1/3 font-semibold text-gray-700 text-sm">Institution</td>
-                          <td className="py-2 text-gray-800 text-sm">{student?.institution || 'N/A'}</td>
-                        </tr>
-
-                        {/* Row 2 */}
-                        <tr className="border-b border-gray-100">
-                          <td className="py-2 font-semibold text-gray-700 text-sm">Is Blind / Is Deaf</td>
-                          <td className="py-2 text-gray-800 text-sm">
-                            {student?.blindStatus || 'No'} / No
-                          </td>
-                          <td className="py-2 font-semibold text-gray-700 text-sm">Institution ID</td>
-                          <td className="py-2 text-gray-800 text-sm">{student?.institutionId || 'N/A'}</td>
-                        </tr>
-
-                        {/* Row 3 */}
-                        <tr className="border-b border-gray-100">
-                          <td className="py-2 font-semibold text-gray-700 text-sm">Exam Center</td>
-                          <td className="py-2 text-gray-800 text-sm">{student?.examCentre || 'N/A'}</td>
-                          <td className="py-2 font-semibold text-gray-700 text-sm">Enrollment Type</td>
-                          <td className="py-2 text-gray-800 text-sm">{student?.enrollmentType || 'N/A'}</td>
-                        </tr>
-
-                        {/* Row 4 — Department + Class */}
-                        <tr className="border-b border-gray-100">
-                          <td className="py-2 font-semibold text-gray-700 text-sm">Department</td>
+                          <td className="py-2 w-1/3 font-semibold text-gray-700 text-sm">Department</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.departmentName || 'N/A'}</td>
+                        </tr>
+
+                        {/* Row 2 — Class + Enrollment Type */}
+                        <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Class</td>
                           <td className="py-2 text-gray-800 text-sm">
                             <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
                               {student?.className || 'N/A'}
                             </span>
                           </td>
+                          <td className="py-2 font-semibold text-gray-700 text-sm">Enrollment Type</td>
+                          <td className="py-2 text-gray-800 text-sm">{student?.enrollmentType || 'N/A'}</td>
                         </tr>
 
-                        {/* Row 5 — Gender */}
+                        {/* Row 3 — Gender + Blind Status */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Gender</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.gender || 'N/A'}</td>
-                          <td className="py-2 font-semibold text-gray-700 text-sm"></td>
-                          <td className="py-2 text-gray-800 text-sm"></td>
+                          <td className="py-2 font-semibold text-gray-700 text-sm">Is Blind / Is Deaf</td>
+                          <td className="py-2 text-gray-800 text-sm">{student?.blindStatus || 'No'} / No</td>
                         </tr>
                       </tbody>
                     </table>

@@ -34,9 +34,7 @@ export default function StudentLogin() {
         departmentName: student?.departmentName || '',
         className: student?.className || '',
         blindStatus: student?.blindStatus || 'No',
-        examCentre: student?.examCentre || 'Not specified',
-        institution: student?.institution || 'Not specified',
-        institutionId: student?.institutionId || 'Not specified',
+      
         enrollmentType: student?.enrollmentType || 'Regular',
         gender: student?.gender || 'Not specified',
       };
