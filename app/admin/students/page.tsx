@@ -4,42 +4,65 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import axios from '@/lib/axios';
-import { Plus, Edit, Trash2 } from 'lucide-react';
-
-interface Student {
-  _id: string;
-  username: string;
-  fullName: string;
-  department: string;
-  examCentre: string;
-  institution: string;
-  institutionId: string;
-  blindStatus: string;
-  gender: string;
-  enrollmentType: string;
-  createdAt: string;
-}
+import { Plus, Edit, Trash2, Upload, X, Search } from 'lucide-react';
 
 interface Department {
   _id: string;
   name: string;
   code: string;
+  level: 'main' | 'sub';
+  parentId: string | null;
+  children?: Department[];
 }
+
+interface Student {
+  _id: string;
+  username: string;
+  fullName: string;
+  departmentId: string;
+  classId: string;
+  departmentName: string;
+  className: string;
+  examCentre: string;
+  institution: string;
+  institutionId: string;
+  enrollmentType: string;
+  gender: string;
+  blindStatus: string;
+  createdAt: string;
+}
+
+type Mode = 'single' | 'bulk';
 
 export default function StudentsPage() {
   const router = useRouter();
-  const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [departments, setDepartments] = useState<Department[]>([]);
 
+  // ---- data ----
+  const [students, setStudents] = useState<Student[]>([]);
+  const [mainDepartments, setMainDepartments] = useState<Department[]>([]);
+  const [allClasses, setAllClasses] = useState<Department[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // ---- filters ----
+  const [filterDeptId, setFilterDeptId] = useState('');
+  const [filterClassId, setFilterClassId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // ---- modal ----
+  const [showModal, setShowModal] = useState(false);
+  const [mode, setMode] = useState<Mode>('single');
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+
+  // shared "where to add" selection
+  const [targetDeptId, setTargetDeptId] = useState('');
+  const [targetClassId, setTargetClassId] = useState('');
+
+  // single form
   const [formData, setFormData] = useState({
     username: '',
     password: '',
     fullName: '',
     blindStatus: 'No',
-    department: '',
     examCentre: '',
     institution: '',
     institutionId: '',
@@ -47,108 +70,241 @@ export default function StudentsPage() {
     gender: 'Male',
   });
 
+  // bulk form
+  const [bulkText, setBulkText] = useState('');
+  const [bulkDefaults, setBulkDefaults] = useState({
+    examCentre: '',
+    institution: '',
+    institutionId: '',
+    enrollmentType: 'Regular',
+    blindStatus: 'No',
+  });
+
   useEffect(() => {
     checkAuth();
-    fetchStudents();
     fetchDepartments();
+    fetchStudents();
   }, []);
+
+  useEffect(() => {
+    fetchStudents();
+  }, [filterDeptId, filterClassId]);
 
   const checkAuth = async () => {
     try {
       await axios.get('/auth/me');
-    } catch (error) {
+    } catch {
       router.push('/admin/login');
-    }
-  };
-
-  const fetchStudents = async () => {
-    try {
-      const res = await axios.get('/students');
-      setStudents(res.data);
-    } catch (error) {
-      toast.error('Failed to fetch students');
-    } finally {
-      setLoading(false);
     }
   };
 
   const fetchDepartments = async () => {
     try {
       const res = await axios.get('/departments');
-      setDepartments(res.data);
-    } catch (error) {
-      console.error('Failed to fetch departments');
+      const data = Array.isArray(res.data) ? res.data : res.data.departments || [];
+      setMainDepartments(data);
+
+      const classes: Department[] = [];
+      data.forEach((d: Department) => {
+        (d.children || []).forEach((c: Department) => classes.push({ ...c, parentId: d._id }));
+      });
+      setAllClasses(classes);
+    } catch (err) {
+      console.error('Fetch departments error:', err);
+      toast.error('Failed to load departments');
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!editingStudent && !formData.password) {
-      toast.error('Password is required');
-      return;
-    }
-
+  const fetchStudents = async () => {
     try {
-      if (editingStudent) {
-        await axios.put(`/students/${editingStudent._id}`, formData);
-        toast.success('Student updated successfully');
-      } else {
-        await axios.post('/students', formData);
-        toast.success('Student created successfully');
-      }
-      setShowModal(false);
-      resetForm();
-      fetchStudents();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Operation failed');
+      const params: any = {};
+      if (filterClassId) params.classId = filterClassId;
+      else if (filterDeptId) params.departmentId = filterDeptId;
+
+      const res = await axios.get('/students', { params });
+      setStudents(res.data);
+    } catch (err) {
+      console.error('Fetch students error:', err);
+      toast.error('Failed to load students');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this student?')) {
-      try {
-        await axios.delete(`/students/${id}`);
-        toast.success('Student deleted successfully');
-        fetchStudents();
-      } catch (error) {
-        toast.error('Failed to delete student');
-      }
-    }
-  };
+  // ---------- helpers ----------
+  const classesForDept = (deptId: string) =>
+    allClasses.filter((c) => c.parentId === deptId);
 
-  const resetForm = () => {
+  const resetForms = () => {
     setEditingStudent(null);
+    setTargetDeptId('');
+    setTargetClassId('');
     setFormData({
       username: '',
       password: '',
       fullName: '',
       blindStatus: 'No',
-      department: '',
       examCentre: '',
       institution: '',
       institutionId: '',
       enrollmentType: 'Regular',
       gender: 'Male',
     });
+    setBulkText('');
+    setBulkDefaults({
+      examCentre: '',
+      institution: '',
+      institutionId: '',
+      enrollmentType: 'Regular',
+      blindStatus: 'No',
+    });
+    setMode('single');
   };
 
-  const editStudent = (student: Student) => {
-    setEditingStudent(student);
+  const openAdd = () => {
+    resetForms();
+    setShowModal(true);
+  };
+
+  const openEdit = (s: Student) => {
+    setEditingStudent(s);
+    setMode('single');
+    setTargetDeptId(s.departmentId);
+    setTargetClassId(s.classId);
     setFormData({
-      username: student.username,
+      username: s.username,
       password: '',
-      fullName: student.fullName,
-      blindStatus: student.blindStatus,
-      department: student.department,
-      examCentre: student.examCentre,
-      institution: student.institution,
-      institutionId: student.institutionId || '',
-      enrollmentType: student.enrollmentType || 'Regular',
-      gender: student.gender,
+      fullName: s.fullName,
+      blindStatus: s.blindStatus || 'No',
+      examCentre: s.examCentre || '',
+      institution: s.institution || '',
+      institutionId: s.institutionId || '',
+      enrollmentType: s.enrollmentType || 'Regular',
+      gender: s.gender || 'Male',
     });
     setShowModal(true);
   };
+
+  // ---------- single submit ----------
+  const submitSingle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetDeptId || !targetClassId) {
+      toast.error('Select department and class');
+      return;
+    }
+    if (!editingStudent && !formData.password) {
+      toast.error('Password is required');
+      return;
+    }
+
+    const payload: any = {
+      ...formData,
+      departmentId: targetDeptId,
+      classId: targetClassId,
+    };
+    if (editingStudent && !formData.password) delete payload.password;
+
+    try {
+      if (editingStudent) {
+        await axios.put(`/students/${editingStudent._id}`, payload);
+        toast.success('Student updated');
+      } else {
+        await axios.post('/students', payload);
+        toast.success('Student created');
+      }
+      setShowModal(false);
+      resetForms();
+      fetchStudents();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Operation failed');
+    }
+  };
+
+  // ---------- bulk submit ----------
+  const submitBulk = async () => {
+    if (!targetDeptId || !targetClassId) {
+      toast.error('Select department and class');
+      return;
+    }
+    if (!bulkText.trim()) {
+      toast.error('Paste at least one row');
+      return;
+    }
+
+    // Expected CSV header:
+    // username,password,fullName,gender,examCentre,institution,institutionId,enrollmentType,blindStatus
+    // Only username, password, fullName, gender are required per row;
+    // anything missing falls back to the bulkDefaults fields above.
+    const lines = bulkText.trim().split(/\r?\n/).filter(Boolean);
+    const students: any[] = [];
+    const errors: string[] = [];
+
+    lines.forEach((line, i) => {
+      const cells = line.split(',').map((c) => c.trim());
+      if (cells.length < 4) {
+        errors.push(`Row ${i + 1}: needs at least username,password,fullName,gender`);
+        return;
+      }
+      const [username, password, fullName, gender, examCentre, institution, institutionId, enrollmentType, blindStatus] = cells;
+      students.push({
+        username,
+        password,
+        fullName,
+        gender: gender || 'Male',
+        examCentre: examCentre || bulkDefaults.examCentre,
+        institution: institution || bulkDefaults.institution,
+        institutionId: institutionId || bulkDefaults.institutionId,
+        enrollmentType: enrollmentType || bulkDefaults.enrollmentType,
+        blindStatus: blindStatus || bulkDefaults.blindStatus,
+      });
+    });
+
+    if (students.length === 0) {
+      toast.error('No valid rows found. ' + errors.join(' | '));
+      return;
+    }
+
+    try {
+      const res = await axios.post('/students/bulk', {
+        departmentId: targetDeptId,
+        classId: targetClassId,
+        students,
+      });
+      const { createdCount, failedCount, failed } = res.data;
+      if (failedCount > 0) {
+        toast.success(`Created ${createdCount}. ${failedCount} failed.`);
+        console.warn('Failed rows:', failed);
+      } else {
+        toast.success(`Created ${createdCount} student(s)`);
+      }
+      setShowModal(false);
+      resetForms();
+      fetchStudents();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Bulk upload failed');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this student?')) return;
+    try {
+      await axios.delete(`/students/${id}`);
+      toast.success('Deleted');
+      fetchStudents();
+    } catch {
+      toast.error('Failed to delete');
+    }
+  };
+
+  const visibleStudents = students.filter((s) => {
+    if (!searchTerm) return true;
+    const q = searchTerm.toLowerCase();
+    return (
+      s.fullName?.toLowerCase().includes(q) ||
+      s.username?.toLowerCase().includes(q) ||
+      s.institutionId?.toLowerCase().includes(q)
+    );
+  });
 
   if (loading) {
     return (
@@ -168,134 +324,114 @@ export default function StudentsPage() {
           <h1 className="text-2xl font-bold">Exam Portal</h1>
           <p className="text-sm text-gray-400 mt-1">Admin Panel</p>
         </div>
-        
         <nav className="mt-6">
-          <button
-            onClick={() => router.push('/admin/dashboard')}
-            className="w-full text-left px-6 py-3 hover:bg-gray-800 transition"
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => router.push('/admin/students')}
-            className="w-full text-left px-6 py-3 bg-gray-800 transition"
-          >
-            Students
-          </button>
-          <button
-            onClick={() => router.push('/admin/departments')}
-            className="w-full text-left px-6 py-3 hover:bg-gray-800 transition"
-          >
-            Departments
-          </button>
-          <button
-            onClick={() => router.push('/admin/courses')}
-            className="w-full text-left px-6 py-3 hover:bg-gray-800 transition"
-          >
-            Courses
-          </button>
-          <button
-            onClick={() => router.push('/admin/questions')}
-            className="w-full text-left px-6 py-3 hover:bg-gray-800 transition"
-          >
-            Questions
-          </button>
-          <button
-            onClick={() => router.push('/admin/results')}
-            className="w-full text-left px-6 py-3 hover:bg-gray-800 transition"
-          >
-            Results
-          </button>
+          <button onClick={() => router.push('/admin/dashboard')} className="w-full text-left px-6 py-3 hover:bg-gray-800">Dashboard</button>
+          <button onClick={() => router.push('/admin/students')} className="w-full text-left px-6 py-3 bg-gray-800">Students</button>
+          <button onClick={() => router.push('/admin/departments')} className="w-full text-left px-6 py-3 hover:bg-gray-800">Departments</button>
+          <button onClick={() => router.push('/admin/courses')} className="w-full text-left px-6 py-3 hover:bg-gray-800">Courses</button>
+          <button onClick={() => router.push('/admin/questions')} className="w-full text-left px-6 py-3 hover:bg-gray-800">Questions</button>
+          <button onClick={() => router.push('/admin/results')} className="w-full text-left px-6 py-3 hover:bg-gray-800">Results</button>
         </nav>
-        
         <div className="absolute bottom-0 left-0 right-0 p-6">
-          <button
-            onClick={async () => {
-              await axios.post('/auth/logout');
-              router.push('/admin/login');
-            }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700 transition"
-          >
-            Logout
-          </button>
+          <button onClick={async () => { await axios.post('/auth/logout'); router.push('/admin/login'); }} className="w-full px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700">Logout</button>
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="ml-64 p-8">
+        {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Students</h1>
-            <p className="text-gray-600 mt-1">Manage student accounts</p>
+            <p className="text-gray-600 mt-1">Add students to a class individually or in bulk</p>
           </div>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            <Plus size={20} />
-            Add Student
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <Plus size={20} /> Add Student
           </button>
         </div>
 
+        {/* Filters */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Department</label>
+            <select
+              value={filterDeptId}
+              onChange={(e) => { setFilterDeptId(e.target.value); setFilterClassId(''); }}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="">All Departments</option>
+              {mainDepartments.map((d) => (
+                <option key={d._id} value={d._id}>{d.name} ({d.code})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Class</label>
+            <select
+              value={filterClassId}
+              onChange={(e) => setFilterClassId(e.target.value)}
+              disabled={!filterDeptId}
+              className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-100"
+            >
+              <option value="">All Classes</option>
+              {classesForDept(filterDeptId).map((c) => (
+                <option key={c._id} value={c._id}>{c.name} ({c.code})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Name, username, or ID"
+                className="w-full pl-9 pr-3 py-2 border rounded-lg"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Table */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exam Centre</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Institution</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Institution ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrollment</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blind</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Full Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Institution ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gender</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Blind</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {students.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
-                      No students found. Click "Add Student" to create one.
-                    </td>
-                  </tr>
+              <tbody className="divide-y divide-gray-200">
+                {visibleStudents.length === 0 ? (
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No students found</td></tr>
                 ) : (
-                  students.map((student) => (
-                    <tr key={student._id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">{student.fullName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.username}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.department}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.examCentre}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.institution}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.institutionId}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.enrollmentType}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.gender}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          student.blindStatus === 'Yes' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {student.blindStatus}
+                  visibleStudents.map((s) => (
+                    <tr key={s._id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">{s.fullName}</td>
+                      <td className="px-4 py-3">{s.username}</td>
+                      <td className="px-4 py-3">{s.departmentName}</td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{s.className}</span>
+                      </td>
+                      <td className="px-4 py-3">{s.institutionId}</td>
+                      <td className="px-4 py-3">{s.gender}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded ${s.blindStatus === 'Yes' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-700'}`}>
+                          {s.blindStatus}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => editStudent(student)}
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            <Edit size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(student._id)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          <button onClick={() => openEdit(s)} className="text-blue-600 hover:text-blue-800"><Edit size={16} /></button>
+                          <button onClick={() => handleDelete(s._id)} className="text-red-600 hover:text-red-800"><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
@@ -307,147 +443,174 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* Student Modal */}
+      {/* MODAL */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 my-8 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-4">
-              {editingStudent ? 'Edit Student' : 'Add New Student'}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                  <input
-                    type="text"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Username *</label>
-                  <input
-                    type="text"
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Password {!editingStudent && '*'}
-                  </label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required={!editingStudent}
-                    placeholder={editingStudent ? "Leave blank to keep current password" : "Enter password"}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
-                  <select
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map(dept => (
-                      <option key={dept._id} value={dept.name}>{dept.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Exam Centre *</label>
-                  <input
-                    type="text"
-                    value={formData.examCentre}
-                    onChange={(e) => setFormData({ ...formData, examCentre: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Institution *</label>
-                  <input
-                    type="text"
-                    value={formData.institution}
-                    onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Institution ID *</label>
-                  <input
-                    type="text"
-                    value={formData.institutionId}
-                    onChange={(e) => setFormData({ ...formData, institutionId: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Enrollment Type</label>
-                  <select
-                    value={formData.enrollmentType}
-                    onChange={(e) => setFormData({ ...formData, enrollmentType: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="Regular">Regular</option>
-                    <option value="Distance">Distance</option>
-                    <option value="Extension">Extension</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                  <select
-                    value={formData.gender}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Blind Status</label>
-                  <select
-                    value={formData.blindStatus}
-                    onChange={(e) => setFormData({ ...formData, blindStatus: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="No">No</option>
-                    <option value="Yes">Yes</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto py-8">
+          <div className="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">
+                {editingStudent ? 'Edit Student' : 'Add Student'}
+              </h2>
+              <button onClick={() => { setShowModal(false); resetForms(); }} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
+            </div>
+
+            {/* Where: department + class (shared for both modes) */}
+            <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+              <div>
+                <label className="block text-sm font-medium mb-1">Department *</label>
+                <select
+                  value={targetDeptId}
+                  onChange={(e) => { setTargetDeptId(e.target.value); setTargetClassId(''); }}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
                 >
-                  {editingStudent ? 'Update' : 'Create'}
+                  <option value="">Select Department</option>
+                  {mainDepartments.map((d) => (
+                    <option key={d._id} value={d._id}>{d.name} ({d.code})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Class *</label>
+                <select
+                  value={targetClassId}
+                  onChange={(e) => setTargetClassId(e.target.value)}
+                  disabled={!targetDeptId}
+                  className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-100"
+                  required
+                >
+                  <option value="">Select Class</option>
+                  {classesForDept(targetDeptId).map((c) => (
+                    <option key={c._id} value={c._id}>{c.name} ({c.code})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Mode tabs (only when not editing) */}
+            {!editingStudent && (
+              <div className="flex gap-2 mb-6 border-b">
+                <button
+                  onClick={() => setMode('single')}
+                  className={`px-4 py-2 font-medium border-b-2 ${mode === 'single' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}
+                >
+                  <Plus size={14} className="inline mr-1" /> Single
                 </button>
                 <button
-                  type="button"
-                  onClick={() => {
-                    setShowModal(false);
-                    resetForm();
-                  }}
-                  className="flex-1 bg-gray-300 text-gray-800 py-2 rounded-lg hover:bg-gray-400"
+                  onClick={() => setMode('bulk')}
+                  className={`px-4 py-2 font-medium border-b-2 ${mode === 'bulk' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}
                 >
-                  Cancel
+                  <Upload size={14} className="inline mr-1" /> Bulk
                 </button>
               </div>
-            </form>
+            )}
+
+            {/* SINGLE */}
+            {(mode === 'single' || editingStudent) && (
+              <form onSubmit={submitSingle} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Full Name *</label>
+                    <input type="text" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Username *</label>
+                    <input type="text" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Password {!editingStudent && '*'}</label>
+                    <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full px-3 py-2 border rounded-lg" placeholder={editingStudent ? 'Leave blank to keep current' : ''} required={!editingStudent} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Gender *</label>
+                    <select value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                      <option>Male</option><option>Female</option><option>Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Exam Centre</label>
+                    <input type="text" value={formData.examCentre} onChange={(e) => setFormData({ ...formData, examCentre: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Institution</label>
+                    <input type="text" value={formData.institution} onChange={(e) => setFormData({ ...formData, institution: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Institution ID</label>
+                    <input type="text" value={formData.institutionId} onChange={(e) => setFormData({ ...formData, institutionId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Enrollment Type</label>
+                    <select value={formData.enrollmentType} onChange={(e) => setFormData({ ...formData, enrollmentType: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                      <option>Regular</option><option>Distance</option><option>Extension</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Blind Status</label>
+                    <select value={formData.blindStatus} onChange={(e) => setFormData({ ...formData, blindStatus: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                      <option>No</option><option>Yes</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                    {editingStudent ? 'Update' : 'Create'}
+                  </button>
+                  <button type="button" onClick={() => { setShowModal(false); resetForms(); }} className="flex-1 bg-gray-300 py-2 rounded-lg hover:bg-gray-400">Cancel</button>
+                </div>
+              </form>
+            )}
+
+            {/* BULK */}
+            {mode === 'bulk' && !editingStudent && (
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                  <p className="font-semibold mb-1">CSV format (one student per line):</p>
+                  <code className="block bg-white rounded p-2 text-xs">
+                    username,password,fullName,gender,examCentre,institution,institutionId,enrollmentType,blindStatus
+                  </code>
+                  <p className="mt-1 text-xs">Only username, password, fullName, gender are required per row. Blanks fall back to the defaults below.</p>
+                </div>
+
+                {/* defaults */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Default Exam Centre</label>
+                    <input type="text" value={bulkDefaults.examCentre} onChange={(e) => setBulkDefaults({ ...bulkDefaults, examCentre: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Default Institution</label>
+                    <input type="text" value={bulkDefaults.institution} onChange={(e) => setBulkDefaults({ ...bulkDefaults, institution: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Default Institution ID</label>
+                    <input type="text" value={bulkDefaults.institutionId} onChange={(e) => setBulkDefaults({ ...bulkDefaults, institutionId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Default Enrollment Type</label>
+                    <select value={bulkDefaults.enrollmentType} onChange={(e) => setBulkDefaults({ ...bulkDefaults, enrollmentType: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                      <option>Regular</option><option>Distance</option><option>Extension</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Paste rows (one student per line)</label>
+                  <textarea
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    rows={10}
+                    className="w-full px-3 py-2 border rounded-lg font-mono text-sm"
+                    placeholder={'john123,pass123,John Doe,Male\njane456,pass456,Jane Smith,Female'}
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={submitBulk} className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">Upload</button>
+                  <button type="button" onClick={() => { setShowModal(false); resetForms(); }} className="flex-1 bg-gray-300 py-2 rounded-lg hover:bg-gray-400">Cancel</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

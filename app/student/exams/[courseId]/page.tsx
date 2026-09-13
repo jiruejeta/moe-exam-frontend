@@ -17,9 +17,13 @@ interface Question {
 }
 
 interface StudentInfo {
+  id: string;
   fullName: string;
   username: string;
-  department: string;
+  departmentId: string;
+  classId: string;
+  departmentName: string;
+  className: string;
   institution: string;
   institutionId: string;
   examCentre: string;
@@ -158,9 +162,9 @@ export default function ExamPage() {
 
   const submitExam = async (isAutoSubmit = false) => {
     if (submitted) return;
-    
+
     setSubmitted(true);
-    
+
     try {
       const stored = localStorage.getItem('examAttempt');
       let examData: ExamAttempt | null = null;
@@ -169,12 +173,12 @@ export default function ExamPage() {
       } catch (parseError) {
         console.error('Error parsing examAttempt on submit:', parseError);
       }
-      
+
       const currentAttemptId = examData?.attemptId;
       const startTime = examData?.startTime;
       const timeSpent = startTime ? Math.floor((Date.now() - new Date(startTime).getTime()) / 60000) : 0;
 
-      // Check if it's a temp ID (for testing/backward compatibility)
+      // Temp ID fallback (for testing)
       if (currentAttemptId && currentAttemptId.startsWith('temp_')) {
         console.log('Temp ID detected, skipping database save');
         toast.success('Exam submitted successfully!');
@@ -195,11 +199,11 @@ export default function ExamPage() {
 
       localStorage.removeItem('examAttempt');
       localStorage.removeItem('studentInfo');
-      
+
       if (document.fullscreenElement) {
         document.exitFullscreen();
       }
-      
+
       toast.success(isAutoSubmit ? 'Time\'s up! Exam submitted.' : 'Exam submitted successfully!');
       router.push('/student/dashboard');
     } catch (error: any) {
@@ -268,9 +272,9 @@ export default function ExamPage() {
       <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-3">
           <div className="flex items-center gap-2">
-            <img 
+            <img
               src="https://cte.moe.gov.et/Logo.png"
-              alt="MoE Logo" 
+              alt="MoE Logo"
               className="w-7 h-7 object-contain"
             />
             <span className="text-lg font-semibold text-[#0d3b8e]">MoEEP</span>
@@ -299,29 +303,50 @@ export default function ExamPage() {
                   <div className="flex-1">
                     <table className="w-full">
                       <tbody>
+                        {/* Row 1 */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 w-1/3 font-semibold text-gray-700 text-sm">Full Name</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.fullName || 'N/A'}</td>
                           <td className="py-2 w-1/3 font-semibold text-gray-700 text-sm">Institution</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.institution || 'N/A'}</td>
                         </tr>
+
+                        {/* Row 2 */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Is Blind / Is Deaf</td>
-                          <td className="py-2 text-gray-800 text-sm">No / No</td>
+                          <td className="py-2 text-gray-800 text-sm">
+                            {student?.blindStatus || 'No'} / No
+                          </td>
                           <td className="py-2 font-semibold text-gray-700 text-sm">Institution ID</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.institutionId || 'N/A'}</td>
                         </tr>
+
+                        {/* Row 3 */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Exam Center</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.examCentre || 'N/A'}</td>
                           <td className="py-2 font-semibold text-gray-700 text-sm">Enrollment Type</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.enrollmentType || 'N/A'}</td>
                         </tr>
+
+                        {/* Row 4 — Department + Class */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Department</td>
-                          <td className="py-2 text-gray-800 text-sm">{student?.department || 'N/A'}</td>
+                          <td className="py-2 text-gray-800 text-sm">{student?.departmentName || 'N/A'}</td>
+                          <td className="py-2 font-semibold text-gray-700 text-sm">Class</td>
+                          <td className="py-2 text-gray-800 text-sm">
+                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                              {student?.className || 'N/A'}
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* Row 5 — Gender */}
+                        <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Gender</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.gender || 'N/A'}</td>
+                          <td className="py-2 font-semibold text-gray-700 text-sm"></td>
+                          <td className="py-2 text-gray-800 text-sm"></td>
                         </tr>
                       </tbody>
                     </table>
@@ -342,24 +367,24 @@ export default function ExamPage() {
                   <h2 className="text-md font-bold text-gray-800">Question {currentIndex + 1}</h2>
                   <p className="text-xs text-gray-600 mt-1">Not yet answered</p>
                   <p className="text-xs text-gray-500">Marked out of 1.00</p>
-                  
+
                   <button
                     onClick={toggleFlag}
                     className={`mt-2 text-xs transition flex items-center gap-1 ${
-                      flagged.has(currentQuestion._id) 
-                        ? 'text-blue-600 font-semibold' 
+                      flagged.has(currentQuestion._id)
+                        ? 'text-blue-600 font-semibold'
                         : 'text-blue-500 hover:text-blue-700'
                     }`}
                   >
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      width="14" 
-                      height="14" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
                       strokeLinejoin="round"
                       className={`inline-block transition-transform duration-200 ${flagged.has(currentQuestion._id) ? 'rotate-45' : ''}`}
                     >
@@ -392,7 +417,7 @@ export default function ExamPage() {
                       Show Timer
                     </button>
                   )}
-                  
+
                   <button
                     onClick={() => setShowQuizNav(!showQuizNav)}
                     className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center shadow-md transition-all"
@@ -448,7 +473,7 @@ export default function ExamPage() {
                   >
                     ← Previous page
                   </button>
-                  
+
                   {currentIndex === questions.length - 1 ? (
                     <button
                       onClick={() => setShowSubmitModal(true)}
@@ -477,14 +502,14 @@ export default function ExamPage() {
                 <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
                   <h3 className="font-semibold text-gray-800 text-sm">Quiz navigation</h3>
                 </div>
-                
+
                 <div className="p-3">
                   <div className="grid grid-cols-5 gap-1.5 max-h-[450px] overflow-y-auto pb-2">
                     {questions.map((q, idx) => {
                       const isAnswered = answers[q._id];
                       const isFlagged = flagged.has(q._id);
                       const isCurrent = currentIndex === idx;
-                      
+
                       return (
                         <div key={q._id} className="relative">
                           <button
@@ -526,16 +551,16 @@ export default function ExamPage() {
               <h2 className="text-white text-xl font-bold">Submit Examination</h2>
               <p className="text-blue-200 text-sm mt-1">Review all your answers before submitting</p>
             </div>
-            
+
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <div className="space-y-3">
                 {questions.map((q, idx) => {
                   const selectedAnswer = answers[q._id];
                   const isFlagged = flagged.has(q._id);
-                  
+
                   return (
-                    <div 
-                      key={q._id} 
+                    <div
+                      key={q._id}
                       className={`flex items-center justify-between py-2 px-3 border rounded-lg ${
                         isFlagged ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'
                       }`}

@@ -24,12 +24,15 @@ export default function StudentLogin() {
 
       const student = response.data?.student;
 
-      // Store ALL student fields including examCentre, institutionId, enrollmentType
+      // Store ALL student fields including department + class
       const studentData = {
         id: student?.id || '',
         username: student?.username || '',
         fullName: student?.fullName || '',
-        department: student?.department || '',
+        departmentId: student?.departmentId || '',
+        classId: student?.classId || '',
+        departmentName: student?.departmentName || '',
+        className: student?.className || '',
         blindStatus: student?.blindStatus || 'No',
         examCentre: student?.examCentre || 'Not specified',
         institution: student?.institution || 'Not specified',
@@ -40,7 +43,7 @@ export default function StudentLogin() {
 
       // Save to localStorage
       localStorage.setItem('studentInfo', JSON.stringify(studentData));
-      
+
       // Redirect to dashboard
       router.push('/student/dashboard');
 

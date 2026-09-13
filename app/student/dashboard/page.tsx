@@ -9,7 +9,10 @@ interface StudentInfo {
   id: string;
   fullName: string;
   username: string;
-  department: string;
+  departmentId: string;
+  classId: string;
+  departmentName: string;
+  className: string;
   institution: string;
   institutionId: string;
   examCentre: string;
@@ -33,7 +36,7 @@ export default function StudentDashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  
+
   // Change Password States
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordData, setPasswordData] = useState({
@@ -41,30 +44,30 @@ export default function StudentDashboard() {
     newPassword: '',
     confirmPassword: '',
   });
-  
+
   // Exam Password States
   const [examPassword, setExamPassword] = useState('');
   const [showExamPasswordInput, setShowExamPasswordInput] = useState(false);
 
   useEffect(() => {
     const studentInfo = localStorage.getItem('studentInfo');
-    
+
     if (!studentInfo) {
       toast.error('Please login again');
       router.push('/student/login');
       return;
     }
-    
+
     try {
       const parsedStudent = JSON.parse(studentInfo);
-      console.log('Student data loaded:', parsedStudent); // Debug log
+      console.log('Student data loaded:', parsedStudent);
       setStudent(parsedStudent);
     } catch (error) {
       console.error('Error parsing student info:', error);
       router.push('/student/login');
       return;
     }
-    
+
     fetchCourses();
   }, []);
 
@@ -93,17 +96,17 @@ export default function StudentDashboard() {
       toast.error('Please confirm new password');
       return;
     }
-    
+
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       toast.error('New password and confirm password do not match');
       return;
     }
-    
+
     if (passwordData.newPassword.length < 4) {
       toast.error('Password must be at least 4 characters');
       return;
     }
-    
+
     toast.success('Password changed successfully!');
     setPasswordData({
       currentPassword: '',
@@ -119,22 +122,19 @@ export default function StudentDashboard() {
       toast.error('Please enter exam password');
       return;
     }
-    
-    // Check against the selected course's password
+
     if (examPassword !== selectedCourse?.examPassword) {
       toast.error('Invalid exam password');
       return;
     }
-    
+
     try {
-      // Call backend to start the exam and get real attempt ID
       const response = await axios.post('/exams/start', {
         courseCode: selectedCourse.code,
       });
-      
+
       const { attempt, totalQuestions, examDuration } = response.data;
-      
-      // Save the REAL attemptId from the database
+
       localStorage.setItem('examAttempt', JSON.stringify({
         attemptId: attempt._id,
         courseCode: selectedCourse.code,
@@ -143,10 +143,8 @@ export default function StudentDashboard() {
         examDuration: examDuration,
         startTime: new Date().toISOString(),
       }));
-      
+
       toast.success('Exam started! Redirecting...');
-      
-      // Redirect to the exam page
       router.push(`/student/exams/${selectedCourse.code}`);
     } catch (error: any) {
       console.error('Start exam error:', error);
@@ -160,7 +158,10 @@ export default function StudentDashboard() {
     setExamPassword('');
   };
 
-  const filteredCourses = courses.filter(c => c.department === student?.department);
+  // Filter courses by the student's department name
+  const filteredCourses = courses.filter(
+    (c) => c.department === student?.departmentName
+  );
 
   if (loading) {
     return (
@@ -176,9 +177,9 @@ export default function StudentDashboard() {
       <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-3">
           <div className="flex items-center gap-2">
-            <img 
+            <img
               src="https://cte.moe.gov.et/Logo.png"
-              alt="MoE Logo" 
+              alt="MoE Logo"
               className="w-7 h-7 object-contain"
             />
             <span className="text-lg font-semibold text-[#0d3b8e]">MoEEP</span>
@@ -188,7 +189,7 @@ export default function StudentDashboard() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Basic Information Card - Right side */}
+        {/* Basic Information Card */}
         <div className="flex justify-end mb-12">
           <div className="w-full max-w-5xl">
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -211,36 +212,48 @@ export default function StudentDashboard() {
                   <div className="flex-1">
                     <table className="w-full">
                       <tbody>
-                        {/* Row 1: Full Name & Institution */}
+                        {/* Row 1 */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 w-1/3 font-semibold text-gray-700 text-sm">Full Name</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.fullName || 'N/A'}</td>
                           <td className="py-2 w-1/3 font-semibold text-gray-700 text-sm">Institution</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.institution || 'N/A'}</td>
                         </tr>
-                        
-                        {/* Row 2: Blind Status & Institution ID */}
+
+                        {/* Row 2 */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Is Blind / Is Deaf</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.blindStatus || 'No'} / No</td>
                           <td className="py-2 font-semibold text-gray-700 text-sm">Institution ID</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.institutionId || 'N/A'}</td>
                         </tr>
-                        
-                        {/* Row 3: Exam Center & Enrollment Type */}
+
+                        {/* Row 3 */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Exam Center</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.examCentre || 'N/A'}</td>
                           <td className="py-2 font-semibold text-gray-700 text-sm">Enrollment Type</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.enrollmentType || 'N/A'}</td>
                         </tr>
-                        
-                        {/* Row 4: Department & Gender */}
+
+                        {/* Row 4 - now shows Department + Class */}
                         <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Department</td>
-                          <td className="py-2 text-gray-800 text-sm">{student?.department || 'N/A'}</td>
+                          <td className="py-2 text-gray-800 text-sm">{student?.departmentName || 'N/A'}</td>
+                          <td className="py-2 font-semibold text-gray-700 text-sm">Class</td>
+                          <td className="py-2 text-gray-800 text-sm">
+                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                              {student?.className || 'N/A'}
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* Row 5 - Gender */}
+                        <tr className="border-b border-gray-100">
                           <td className="py-2 font-semibold text-gray-700 text-sm">Gender</td>
                           <td className="py-2 text-gray-800 text-sm">{student?.gender || 'N/A'}</td>
+                          <td className="py-2 font-semibold text-gray-700 text-sm"></td>
+                          <td className="py-2 text-gray-800 text-sm"></td>
                         </tr>
                       </tbody>
                     </table>
@@ -254,7 +267,6 @@ export default function StudentDashboard() {
         {/* Bottom Section */}
         <div>
           {!selectedCourse ? (
-            // Course Selection - Show available courses
             filteredCourses.length === 0 ? (
               <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
                 <p className="text-gray-500 text-lg">No exams available for your department.</p>
@@ -264,8 +276,7 @@ export default function StudentDashboard() {
               filteredCourses.map((course) => (
                 <div key={course._id} className="mb-6">
                   <h2 className="text-4xl font-bold text-gray-800 mb-6 -ml-6">{course.name}</h2>
-                  
-                  {/* Centered Buttons */}
+
                   <div className="flex justify-center items-center gap-8">
                     <div className="relative">
                       <button
@@ -274,12 +285,11 @@ export default function StudentDashboard() {
                       >
                         Change Password
                       </button>
-                      
-                      {/* Change Password Popup */}
+
                       {showChangePassword && (
                         <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 p-5 bg-white rounded-lg border border-gray-200 shadow-xl z-20 w-96">
                           <h3 className="text-lg font-semibold text-gray-800 mb-4">Change Password</h3>
-                          
+
                           <div className="mb-3">
                             <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
                             <input
@@ -290,7 +300,7 @@ export default function StudentDashboard() {
                               placeholder="Enter current password"
                             />
                           </div>
-                          
+
                           <div className="mb-3">
                             <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
                             <input
@@ -301,7 +311,7 @@ export default function StudentDashboard() {
                               placeholder="Enter new password"
                             />
                           </div>
-                          
+
                           <div className="mb-4">
                             <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
                             <input
@@ -312,7 +322,7 @@ export default function StudentDashboard() {
                               placeholder="Confirm new password"
                             />
                           </div>
-                          
+
                           <button
                             onClick={handleChangePassword}
                             className="w-full bg-[#0d3b8e] text-white py-2 rounded-md hover:bg-blue-900 transition font-medium"
@@ -322,7 +332,7 @@ export default function StudentDashboard() {
                         </div>
                       )}
                     </div>
-                    
+
                     <button
                       onClick={() => selectCourse(course)}
                       className="px-6 py-2 bg-[#0d3b8e] text-white rounded-md hover:bg-blue-900 transition"
@@ -334,7 +344,6 @@ export default function StudentDashboard() {
               ))
             )
           ) : (
-            // Exam Password Entry
             <div>
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-4xl font-bold text-gray-800 -ml-6">{selectedCourse.name}</h2>
