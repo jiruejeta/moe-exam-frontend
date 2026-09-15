@@ -4,8 +4,14 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import axios from '@/lib/axios';
-import { Download, Eye, Search, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import {
+  Download,
+  Eye,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet,
+} from 'lucide-react';
 
 interface Result {
   _id: string;
@@ -64,9 +70,12 @@ export default function ResultsPage() {
       setResults(res.data);
       setFiltered(res.data);
 
-      // unique departments + classes
-      const depts = Array.from(new Set(res.data.map((r: Result) => r.department).filter(Boolean)));
-      const cls = Array.from(new Set(res.data.map((r: Result) => r.className).filter(Boolean)));
+      const depts = Array.from(
+        new Set(res.data.map((r: Result) => r.department).filter(Boolean))
+      );
+      const cls = Array.from(
+        new Set(res.data.map((r: Result) => r.className).filter(Boolean))
+      );
       setDepartments(depts as string[]);
       setClasses(cls as string[]);
     } catch {
@@ -87,125 +96,51 @@ export default function ResultsPage() {
           r.courseName?.toLowerCase().includes(q)
       );
     }
-    if (selectedDepartment) list = list.filter((r) => r.department === selectedDepartment);
+    if (selectedDepartment)
+      list = list.filter((r) => r.department === selectedDepartment);
     if (selectedClass) list = list.filter((r) => r.className === selectedClass);
+
     setFiltered(list);
     setCurrentPage(1);
   };
 
-  // ========== EXCEL EXPORT ==========
- // ========== EXCEL EXPORT — grouped by Department → Class → Course ==========
-const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
-  if (filtered.length === 0) {
-    toast.error('No results to export');
-    return;
-  }
+  // =========================================================
+  // SERVER-SIDE EXCEL EXPORT
+  // mode = 'by-course' (default) | 'by-class' | 'flat'
+  // =========================================================
+  const exportFromServer = async (
+    mode: 'by-course' | 'by-class' | 'flat' = 'by-course'
+  ) => {
+    try {
+      const params = new URLSearchParams();
+      params.set('mode', mode);
+      if (selectedDepartment) params.set('department', selectedDepartment);
+      if (selectedClass) params.set('className', selectedClass);
 
-  const wb = XLSX.utils.book_new();
-  const dataToExport = scope === 'filtered' ? filtered : results;
+      const res = await axios.get(
+        `/results/export/excel?${params.toString()}`,
+        { responseType: 'blob' }
+      );
 
-  // Row shape used inside every sheet
-  const toRow = (r: Result) => ({
-    Department: r.department,
-    Class: r.className || '—',
-    Course: `${r.courseName} (${r.courseCode})`,
-    'Student Name': r.studentName,
-    Username: r.studentUsername,
-    Score: r.score,
-    'Total Questions': r.totalQuestions,
-    'Correct Answers': r.correctAnswers,
-    'Incorrect Answers': r.incorrectAnswers,
-    'Percentage (%)': r.percentage,
-    'Time Spent (min)': r.timeSpent || 0,
-    Violations: r.violations || 0,
-    'Completed At': new Date(r.completedAt).toLocaleString(),
-  });
-
-  const header = Object.keys(toRow(dataToExport[0]));
-
-  // Group: Department → Class → Course → rows
-  const group = (rows: Result[]) => {
-    const out: Record<string, Record<string, Record<string, Result[]>>> = {};
-    rows.forEach((r) => {
-      const dept = r.department || 'Unassigned';
-      const cls = r.className || 'Unassigned';
-      const course = `${r.courseName} (${r.courseCode})`;
-      out[dept] = out[dept] || {};
-      out[dept][cls] = out[dept][cls] || {};
-      out[dept][cls][course] = out[dept][cls][course] || [];
-      out[dept][cls][course].push(r);
-    });
-    return out;
-  };
-
-  // Build a grouped sheet
-  const buildSheet = (rows: Result[]) => {
-    const grouped = group(rows);
-    const data: any[][] = [];
-
-    data.push([`Results export — ${new Date().toLocaleDateString()}`]);
-    data.push([]);
-    data.push(header);
-
-    Object.entries(grouped).forEach(([dept, classes]) => {
-      data.push([`DEPARTMENT: ${dept}`]);
-
-      Object.entries(classes).forEach(([cls, courses]) => {
-        data.push([`  CLASS: ${cls}`]);
-
-        Object.entries(courses).forEach(([course, courseRows]) => {
-          data.push([`    COURSE: ${course}`]);
-          courseRows.forEach((r) => data.push(Object.values(toRow(r))));
-
-          const avg =
-            courseRows.reduce((a, b) => a + b.percentage, 0) / courseRows.length;
-          data.push([
-            '',
-            '',
-            '',
-            `Sub-total: ${courseRows.length} student(s)`,
-            '',
-            '',
-            '',
-            '',
-            '',
-            `Avg: ${avg.toFixed(1)}%`,
-          ]);
-          data.push([]);
-        });
+      const blob = new Blob([res.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
-      data.push([]);
-    });
 
-    return XLSX.utils.aoa_to_sheet(data);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `results_${mode}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Excel file downloaded');
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.message || 'Export failed');
+    }
   };
-
-  if (scope === 'by-class') {
-    // One sheet per class
-    const byClass: Record<string, Result[]> = {};
-    dataToExport.forEach((r) => {
-      const key = r.className || 'Unassigned';
-      byClass[key] = byClass[key] || [];
-      byClass[key].push(r);
-    });
-
-    Object.entries(byClass).forEach(([cls, rows]) => {
-      XLSX.utils.book_append_sheet(wb, buildSheet(rows), cls.substring(0, 31) || 'Class');
-    });
-  } else {
-    XLSX.utils.book_append_sheet(wb, buildSheet(dataToExport), 'Results');
-  }
-
-  const filename =
-    scope === 'by-class'
-      ? `results_by_class_${new Date().toISOString().slice(0, 10)}.xlsx`
-      : scope === 'filtered'
-        ? `results_filtered_${new Date().toISOString().slice(0, 10)}.xlsx`
-        : `results_all_${new Date().toISOString().slice(0, 10)}.xlsx`;
-
-  XLSX.writeFile(wb, filename);
-  toast.success('Excel file downloaded');
-};
 
   const getPercentageColor = (percentage: number) => {
     if (percentage >= 80) return 'text-green-600 bg-green-100';
@@ -246,7 +181,15 @@ const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
           <button onClick={() => router.push('/admin/results')} className="w-full text-left px-6 py-3 bg-gray-800">Results</button>
         </nav>
         <div className="absolute bottom-0 left-0 right-0 p-6">
-          <button onClick={async () => { await axios.post('/auth/logout'); router.push('/admin/login'); }} className="w-full px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700">Logout</button>
+          <button
+            onClick={async () => {
+              await axios.post('/auth/logout');
+              router.push('/admin/login');
+            }}
+            className="w-full px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700"
+          >
+            Logout
+          </button>
         </div>
       </div>
 
@@ -254,21 +197,31 @@ const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Results</h1>
-            <p className="text-gray-600 mt-1">View, filter, and export results by class</p>
+            <p className="text-gray-600 mt-1">
+              View, filter, and export results by course or class
+            </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => exportExcel('by-class')}
+              onClick={() => exportFromServer('by-course')}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              title="One sheet per course"
+            >
+              <FileSpreadsheet size={18} /> Export by Course
+            </button>
+            <button
+              onClick={() => exportFromServer('by-class')}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
               title="One sheet per class"
             >
               <FileSpreadsheet size={18} /> Export by Class
             </button>
             <button
-              onClick={() => exportExcel('filtered')}
+              onClick={() => exportFromServer('flat')}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              title="Single sheet, grouped inside"
             >
-              <Download size={18} /> Export Filtered
+              <Download size={18} /> Export All
             </button>
           </div>
         </div>
@@ -288,7 +241,10 @@ const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
           <div>
             <select
               value={selectedDepartment}
-              onChange={(e) => { setSelectedDepartment(e.target.value); setSelectedClass(''); }}
+              onChange={(e) => {
+                setSelectedDepartment(e.target.value);
+                setSelectedClass('');
+              }}
               className="w-full px-3 py-2 border rounded-lg"
             >
               <option value="">All Departments</option>
@@ -316,18 +272,32 @@ const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
           <div className="bg-white rounded-lg shadow-md p-4">
             <p className="text-sm text-gray-500">Average Score</p>
             <p className="text-2xl font-bold">
-              {filtered.length ? Math.round(filtered.reduce((a, b) => a + b.percentage, 0) / filtered.length) : 0}%
+              {filtered.length
+                ? Math.round(
+                    filtered.reduce((a, b) => a + b.percentage, 0) / filtered.length
+                  )
+                : 0}
+              %
             </p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-4">
             <p className="text-sm text-gray-500">Pass Rate (&gt;50%)</p>
             <p className="text-2xl font-bold">
-              {filtered.length ? Math.round((filtered.filter((r) => r.percentage >= 50).length / filtered.length) * 100) : 0}%
+              {filtered.length
+                ? Math.round(
+                    (filtered.filter((r) => r.percentage >= 50).length /
+                      filtered.length) *
+                      100
+                  )
+                : 0}
+              %
             </p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-4">
             <p className="text-sm text-gray-500">Total Violations</p>
-            <p className="text-2xl font-bold">{filtered.reduce((a, b) => a + (b.violations || 0), 0)}</p>
+            <p className="text-2xl font-bold">
+              {filtered.reduce((a, b) => a + (b.violations || 0), 0)}
+            </p>
           </div>
         </div>
 
@@ -351,7 +321,11 @@ const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {current.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-500">No results found</td></tr>
+                  <tr>
+                    <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                      No results found
+                    </td>
+                  </tr>
                 ) : (
                   current.map((r) => (
                     <tr key={r._id} className="hover:bg-gray-50">
@@ -381,9 +355,14 @@ const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
                           {r.violations || 0}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm">{new Date(r.completedAt).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {new Date(r.completedAt).toLocaleDateString()}
+                      </td>
                       <td className="px-4 py-3">
-                        <button onClick={() => setSelectedResult(r)} className="text-blue-600 hover:text-blue-800">
+                        <button
+                          onClick={() => setSelectedResult(r)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
                           <Eye size={16} />
                         </button>
                       </td>
@@ -396,11 +375,21 @@ const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
 
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 py-4 border-t">
-              <button onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))} disabled={currentPage === 1} className="p-2 rounded-lg disabled:opacity-50 hover:bg-gray-100">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg disabled:opacity-50 hover:bg-gray-100"
+              >
                 <ChevronLeft size={20} />
               </button>
-              <span className="text-sm">Page {currentPage} of {totalPages}</span>
-              <button onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="p-2 rounded-lg disabled:opacity-50 hover:bg-gray-100">
+              <span className="text-sm">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg disabled:opacity-50 hover:bg-gray-100"
+              >
                 <ChevronRight size={20} />
               </button>
             </div>
@@ -414,7 +403,12 @@ const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold">Result Details</h2>
-              <button onClick={() => setSelectedResult(null)} className="text-gray-500 hover:text-gray-700">✕</button>
+              <button
+                onClick={() => setSelectedResult(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
             </div>
             <div className="space-y-3">
               <div><p className="text-sm text-gray-500">Student Name</p><p className="font-semibold">{selectedResult.studentName}</p></div>
@@ -422,14 +416,33 @@ const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
               <div><p className="text-sm text-gray-500">Department</p><p className="font-semibold">{selectedResult.department}</p></div>
               <div><p className="text-sm text-gray-500">Class</p><p className="font-semibold">{selectedResult.className || '—'}</p></div>
               <div><p className="text-sm text-gray-500">Course</p><p className="font-semibold">{selectedResult.courseName} ({selectedResult.courseCode})</p></div>
-              <div className="border-t pt-3"><p className="text-sm text-gray-500">Score</p><p className="text-2xl font-bold">{selectedResult.score}/{selectedResult.totalQuestions}</p></div>
-              <div><p className="text-sm text-gray-500">Percentage</p><p className="text-xl font-semibold text-blue-600">{selectedResult.percentage.toFixed(1)}%</p></div>
+              <div className="border-t pt-3">
+                <p className="text-sm text-gray-500">Score</p>
+                <p className="text-2xl font-bold">{selectedResult.score}/{selectedResult.totalQuestions}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Percentage</p>
+                <p className="text-xl font-semibold text-blue-600">{selectedResult.percentage.toFixed(1)}%</p>
+              </div>
               <div><p className="text-sm text-gray-500">Correct / Incorrect</p><p>{selectedResult.correctAnswers} / {selectedResult.incorrectAnswers}</p></div>
               <div><p className="text-sm text-gray-500">Time Spent</p><p>{selectedResult.timeSpent || 0} minutes</p></div>
-              <div><p className="text-sm text-gray-500">Violations</p><p className={selectedResult.violations > 0 ? 'text-red-600' : 'text-green-600'}>{selectedResult.violations || 0}</p></div>
-              <div><p className="text-sm text-gray-500">Completed On</p><p>{new Date(selectedResult.completedAt).toLocaleString()}</p></div>
+              <div>
+                <p className="text-sm text-gray-500">Violations</p>
+                <p className={selectedResult.violations > 0 ? 'text-red-600' : 'text-green-600'}>
+                  {selectedResult.violations || 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Completed On</p>
+                <p>{new Date(selectedResult.completedAt).toLocaleString()}</p>
+              </div>
             </div>
-            <button onClick={() => setSelectedResult(null)} className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">Close</button>
+            <button
+              onClick={() => setSelectedResult(null)}
+              className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
