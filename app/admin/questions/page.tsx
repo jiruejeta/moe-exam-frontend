@@ -9,12 +9,7 @@ import { Plus, Edit, Trash2, Upload, X, ChevronLeft, ChevronRight, CheckCircle, 
 interface Question {
   _id: string;
   text: string;
-  options: {
-    A: string;
-    B: string;
-    C: string;
-    D: string;
-  };
+  options: { A: string; B: string; C: string; D: string };
   correctAnswer: string;
   courseCode: string;
   department: string;
@@ -138,7 +133,7 @@ export default function QuestionsPage() {
         return;
       }
 
-      const res = await axios.post('/questions/bulk', {
+      await axios.post('/questions/bulk', {
         questions,
         courseCode: selectedCourse,
         department: courses.find((c) => c.code === selectedCourse)?.department,
@@ -153,27 +148,45 @@ export default function QuestionsPage() {
     }
   };
 
+  // ✅ Publish only the currently selected course
   const publishAll = async () => {
-    if (!selectedCourse) return;
-    if (!confirm('Publish ALL draft questions for this course?')) return;
+    if (!selectedCourse) {
+      toast.error('Please select a course first');
+      return;
+    }
+    if (
+      !confirm(
+        `Publish ALL draft questions for course ${selectedCourse}?\n\nThis will make them visible to students.`
+      )
+    )
+      return;
     try {
       const res = await axios.post(`/questions/publish/${selectedCourse}`);
-      toast.success(res.data.message);
+      toast.success(res.data.message || 'Questions published');
       fetchQuestions();
-    } catch {
-      toast.error('Publish failed');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Publish failed');
     }
   };
 
+  // ✅ Unpublish only the currently selected course
   const unpublishAll = async () => {
-    if (!selectedCourse) return;
-    if (!confirm('Move all published questions back to DRAFT?')) return;
+    if (!selectedCourse) {
+      toast.error('Please select a course first');
+      return;
+    }
+    if (
+      !confirm(
+        `Move all PUBLISHED questions for course ${selectedCourse} back to DRAFT?\n\nStudents will no longer see them.`
+      )
+    )
+      return;
     try {
       const res = await axios.post(`/questions/unpublish/${selectedCourse}`);
-      toast.success(res.data.message);
+      toast.success(res.data.message || 'Questions moved to draft');
       fetchQuestions();
-    } catch {
-      toast.error('Unpublish failed');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Unpublish failed');
     }
   };
 
@@ -227,11 +240,9 @@ export default function QuestionsPage() {
     setShowModal(true);
   };
 
-  // Counters
   const draftCount = questions.filter((q) => q.status === 'draft').length;
   const publishedCount = questions.filter((q) => q.status === 'published').length;
 
-  // Pagination
   const indexOfLastQuestion = currentPage * questionsPerPage;
   const indexOfFirstQuestion = indexOfLastQuestion - questionsPerPage;
   const currentQuestions = questions.slice(indexOfFirstQuestion, indexOfLastQuestion);
@@ -338,7 +349,7 @@ export default function QuestionsPage() {
                 {currentQuestions.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                      No questions found for this course. Click "Add Question" to create one.
+                      No questions found for this course. Click &quot;Add Question&quot; to create one.
                     </td>
                   </tr>
                 ) : (
@@ -391,7 +402,6 @@ export default function QuestionsPage() {
             </table>
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 py-4 border-t">
               <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="p-2 rounded-lg disabled:opacity-50 hover:bg-gray-100">
@@ -493,7 +503,7 @@ export default function QuestionsPage() {
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
               <p className="text-sm text-amber-800">
-                💡 All uploaded questions will be saved as <strong>DRAFT</strong>. Use "Publish all" when the exam is ready.
+                💡 All uploaded questions will be saved as <strong>DRAFT</strong>. Use &quot;Publish all&quot; when the exam is ready.
               </p>
             </div>
             <textarea
