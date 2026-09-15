@@ -24,7 +24,6 @@ export default function StudentLogin() {
 
       const student = response.data?.student;
 
-      // Store ALL student fields including department + class
       const studentData = {
         id: student?.id || '',
         username: student?.username || '',
@@ -34,15 +33,11 @@ export default function StudentLogin() {
         departmentName: student?.departmentName || '',
         className: student?.className || '',
         blindStatus: student?.blindStatus || 'No',
-      
         enrollmentType: student?.enrollmentType || 'Regular',
         gender: student?.gender || 'Not specified',
       };
 
-      // Save to localStorage
       localStorage.setItem('studentInfo', JSON.stringify(studentData));
-
-      // Redirect to dashboard
       router.push('/student/dashboard');
 
     } catch (error: any) {
@@ -59,14 +54,20 @@ export default function StudentLogin() {
         <div className="border border-gray-300 rounded-lg p-8 bg-white">
           <div className="text-center">
             <div className="flex justify-center mb-4">
-              <img 
-                src="https://cte.moe.gov.et/Logo.png"
-                alt="Ministry of Education - CTE Logo" 
-                className="w-[80px] h-[80px] object-contain"
+              {/* Bako High School logo — replace src with your school logo */}
+              <img
+                src="/bako-logo.JPG"
+                alt="Bako High School"
+                className="w-[90px] h-[90px] object-contain"
+                onError={(e) => {
+                  // Fallback if logo missing — show initials
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
               />
             </div>
-            <h1 className="text-[#0d3b8e] text-2xl font-bold">MoE - Exit Exam</h1>
-            <p className="text-gray-500 text-sm mt-1">Student Login Portal</p>
+
+            <h1 className="text-[#0d3b8e] text-2xl font-bold">Bako High School</h1>
+            <p className="text-gray-600 text-sm mt-1">Bako Online Exam Portal</p>
           </div>
 
           <div className="mt-8">
@@ -81,7 +82,7 @@ export default function StudentLogin() {
                   required
                 />
               </div>
-              
+
               <div>
                 <input
                   type="password"
@@ -92,7 +93,7 @@ export default function StudentLogin() {
                   required
                 />
               </div>
-              
+
               <div className="flex justify-center pt-2">
                 <button
                   type="submit"
@@ -104,6 +105,11 @@ export default function StudentLogin() {
               </div>
             </form>
           </div>
+
+          <p className="text-center text-xs text-gray-400 mt-6">
+            Bako High School · Online Exam
+          
+          </p>
         </div>
       </div>
     </div>
