@@ -56,7 +56,7 @@ export default function StudentLogin() {
             <div className="flex justify-center mb-4">
               {/* Bako High School logo — replace src with your school logo */}
               <img
-                src="/bako-logo.JPG"
+                src="/bako-logo.jpg"
                 alt="Bako High School"
                 className="w-[90px] h-[90px] object-contain"
                 onError={(e) => {
