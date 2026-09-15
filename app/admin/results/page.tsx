@@ -40,8 +40,12 @@ export default function ResultsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
+  const [selectedCourse, setSelectedCourse] = useState('');
+
+  // Dropdown sources
   const [departments, setDepartments] = useState<string[]>([]);
   const [classes, setClasses] = useState<string[]>([]);
+  const [courses, setCourses] = useState<{ code: string; name: string }[]>([]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedResult, setSelectedResult] = useState<Result | null>(null);
@@ -54,7 +58,7 @@ export default function ResultsPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [searchTerm, selectedDepartment, selectedClass, results]);
+  }, [searchTerm, selectedDepartment, selectedClass, selectedCourse, results]);
 
   const checkAuth = async () => {
     try {
@@ -72,12 +76,24 @@ export default function ResultsPage() {
 
       const depts = Array.from(
         new Set(res.data.map((r: Result) => r.department).filter(Boolean))
-      );
+      ) as string[];
       const cls = Array.from(
         new Set(res.data.map((r: Result) => r.className).filter(Boolean))
-      );
-      setDepartments(depts as string[]);
-      setClasses(cls as string[]);
+      ) as string[];
+
+      // Courses: unique by courseCode, keep one name
+      const courseMap = new Map<string, string>();
+      res.data.forEach((r: Result) => {
+        if (r.courseCode) courseMap.set(r.courseCode, r.courseName || r.courseCode);
+      });
+      const courseList = Array.from(courseMap.entries()).map(([code, name]) => ({
+        code,
+        name,
+      }));
+
+      setDepartments(depts);
+      setClasses(cls);
+      setCourses(courseList);
     } catch {
       toast.error('Failed to fetch results');
     } finally {
@@ -87,6 +103,7 @@ export default function ResultsPage() {
 
   const applyFilters = () => {
     let list = [...results];
+
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       list = list.filter(
@@ -99,14 +116,17 @@ export default function ResultsPage() {
     if (selectedDepartment)
       list = list.filter((r) => r.department === selectedDepartment);
     if (selectedClass) list = list.filter((r) => r.className === selectedClass);
+    if (selectedCourse) list = list.filter((r) => r.courseCode === selectedCourse);
 
     setFiltered(list);
     setCurrentPage(1);
   };
 
   // =========================================================
-  // SERVER-SIDE EXCEL EXPORT
-  // mode = 'by-course' (default) | 'by-class' | 'flat'
+  // Server-side Excel export
+  // mode: 'by-course' | 'by-class' | 'flat'
+  // Passes department, className, courseCode so the server can
+  // build the exact Department → Class → Course hierarchy.
   // =========================================================
   const exportFromServer = async (
     mode: 'by-course' | 'by-class' | 'flat' = 'by-course'
@@ -116,6 +136,7 @@ export default function ResultsPage() {
       params.set('mode', mode);
       if (selectedDepartment) params.set('department', selectedDepartment);
       if (selectedClass) params.set('className', selectedClass);
+      if (selectedCourse) params.set('courseCode', selectedCourse);
 
       const res = await axios.get(
         `/results/export/excel?${params.toString()}`,
@@ -181,15 +202,7 @@ export default function ResultsPage() {
           <button onClick={() => router.push('/admin/results')} className="w-full text-left px-6 py-3 bg-gray-800">Results</button>
         </nav>
         <div className="absolute bottom-0 left-0 right-0 p-6">
-          <button
-            onClick={async () => {
-              await axios.post('/auth/logout');
-              router.push('/admin/login');
-            }}
-            className="w-full px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700"
-          >
-            Logout
-          </button>
+          <button onClick={async () => { await axios.post('/auth/logout'); router.push('/admin/login'); }} className="w-full px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700">Logout</button>
         </div>
       </div>
 
@@ -198,7 +211,7 @@ export default function ResultsPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Results</h1>
             <p className="text-gray-600 mt-1">
-              View, filter, and export results by course or class
+              Filter by Department → Class → Course, then export the exact view
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -219,7 +232,7 @@ export default function ResultsPage() {
             <button
               onClick={() => exportFromServer('flat')}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              title="Single sheet, grouped inside"
+              title="Single grouped sheet"
             >
               <Download size={18} /> Export All
             </button>
@@ -227,7 +240,7 @@ export default function ResultsPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -241,10 +254,7 @@ export default function ResultsPage() {
           <div>
             <select
               value={selectedDepartment}
-              onChange={(e) => {
-                setSelectedDepartment(e.target.value);
-                setSelectedClass('');
-              }}
+              onChange={(e) => { setSelectedDepartment(e.target.value); setSelectedClass(''); }}
               className="w-full px-3 py-2 border rounded-lg"
             >
               <option value="">All Departments</option>
@@ -261,6 +271,20 @@ export default function ResultsPage() {
               {classes.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
+          <div>
+            <select
+              value={selectedCourse}
+              onChange={(e) => setSelectedCourse(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="">All Courses</option>
+              {courses.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name} ({c.code})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Stats */}
@@ -272,32 +296,20 @@ export default function ResultsPage() {
           <div className="bg-white rounded-lg shadow-md p-4">
             <p className="text-sm text-gray-500">Average Score</p>
             <p className="text-2xl font-bold">
-              {filtered.length
-                ? Math.round(
-                    filtered.reduce((a, b) => a + b.percentage, 0) / filtered.length
-                  )
-                : 0}
-              %
+              {filtered.length ? Math.round(filtered.reduce((a, b) => a + b.percentage, 0) / filtered.length) : 0}%
             </p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-4">
             <p className="text-sm text-gray-500">Pass Rate (&gt;50%)</p>
             <p className="text-2xl font-bold">
               {filtered.length
-                ? Math.round(
-                    (filtered.filter((r) => r.percentage >= 50).length /
-                      filtered.length) *
-                      100
-                  )
-                : 0}
-              %
+                ? Math.round((filtered.filter((r) => r.percentage >= 50).length / filtered.length) * 100)
+                : 0}%
             </p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-4">
             <p className="text-sm text-gray-500">Total Violations</p>
-            <p className="text-2xl font-bold">
-              {filtered.reduce((a, b) => a + (b.violations || 0), 0)}
-            </p>
+            <p className="text-2xl font-bold">{filtered.reduce((a, b) => a + (b.violations || 0), 0)}</p>
           </div>
         </div>
 
@@ -321,11 +333,7 @@ export default function ResultsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {current.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
-                      No results found
-                    </td>
-                  </tr>
+                  <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-500">No results found</td></tr>
                 ) : (
                   current.map((r) => (
                     <tr key={r._id} className="hover:bg-gray-50">
@@ -335,9 +343,7 @@ export default function ResultsPage() {
                       </td>
                       <td className="px-4 py-3">{r.department}</td>
                       <td className="px-4 py-3">
-                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                          {r.className || '—'}
-                        </span>
+                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{r.className || '—'}</span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-medium">{r.courseName}</div>
@@ -355,16 +361,9 @@ export default function ResultsPage() {
                           {r.violations || 0}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm">
-                        {new Date(r.completedAt).toLocaleDateString()}
-                      </td>
+                      <td className="px-4 py-3 text-sm">{new Date(r.completedAt).toLocaleDateString()}</td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => setSelectedResult(r)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <Eye size={16} />
-                        </button>
+                        <button onClick={() => setSelectedResult(r)} className="text-blue-600 hover:text-blue-800"><Eye size={16} /></button>
                       </td>
                     </tr>
                   ))
@@ -375,23 +374,9 @@ export default function ResultsPage() {
 
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 py-4 border-t">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                disabled={currentPage === 1}
-                className="p-2 rounded-lg disabled:opacity-50 hover:bg-gray-100"
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <span className="text-sm">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="p-2 rounded-lg disabled:opacity-50 hover:bg-gray-100"
-              >
-                <ChevronRight size={20} />
-              </button>
+              <button onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))} disabled={currentPage === 1} className="p-2 rounded-lg disabled:opacity-50 hover:bg-gray-100"><ChevronLeft size={20} /></button>
+              <span className="text-sm">Page {currentPage} of {totalPages}</span>
+              <button onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="p-2 rounded-lg disabled:opacity-50 hover:bg-gray-100"><ChevronRight size={20} /></button>
             </div>
           )}
         </div>
@@ -403,46 +388,22 @@ export default function ResultsPage() {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold">Result Details</h2>
-              <button
-                onClick={() => setSelectedResult(null)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ✕
-              </button>
+              <button onClick={() => setSelectedResult(null)} className="text-gray-500 hover:text-gray-700">✕</button>
             </div>
             <div className="space-y-3">
-              <div><p className="text-sm text-gray-500">Student Name</p><p className="font-semibold">{selectedResult.studentName}</p></div>
+              <div><p className="text-sm text-gray-500">Student</p><p className="font-semibold">{selectedResult.studentName}</p></div>
               <div><p className="text-sm text-gray-500">Username</p><p className="font-semibold">{selectedResult.studentUsername}</p></div>
               <div><p className="text-sm text-gray-500">Department</p><p className="font-semibold">{selectedResult.department}</p></div>
               <div><p className="text-sm text-gray-500">Class</p><p className="font-semibold">{selectedResult.className || '—'}</p></div>
               <div><p className="text-sm text-gray-500">Course</p><p className="font-semibold">{selectedResult.courseName} ({selectedResult.courseCode})</p></div>
-              <div className="border-t pt-3">
-                <p className="text-sm text-gray-500">Score</p>
-                <p className="text-2xl font-bold">{selectedResult.score}/{selectedResult.totalQuestions}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Percentage</p>
-                <p className="text-xl font-semibold text-blue-600">{selectedResult.percentage.toFixed(1)}%</p>
-              </div>
+              <div className="border-t pt-3"><p className="text-sm text-gray-500">Score</p><p className="text-2xl font-bold">{selectedResult.score}/{selectedResult.totalQuestions}</p></div>
+              <div><p className="text-sm text-gray-500">Percentage</p><p className="text-xl font-semibold text-blue-600">{selectedResult.percentage.toFixed(1)}%</p></div>
               <div><p className="text-sm text-gray-500">Correct / Incorrect</p><p>{selectedResult.correctAnswers} / {selectedResult.incorrectAnswers}</p></div>
               <div><p className="text-sm text-gray-500">Time Spent</p><p>{selectedResult.timeSpent || 0} minutes</p></div>
-              <div>
-                <p className="text-sm text-gray-500">Violations</p>
-                <p className={selectedResult.violations > 0 ? 'text-red-600' : 'text-green-600'}>
-                  {selectedResult.violations || 0}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Completed On</p>
-                <p>{new Date(selectedResult.completedAt).toLocaleString()}</p>
-              </div>
+              <div><p className="text-sm text-gray-500">Violations</p><p className={selectedResult.violations > 0 ? 'text-red-600' : 'text-green-600'}>{selectedResult.violations || 0}</p></div>
+              <div><p className="text-sm text-gray-500">Completed On</p><p>{new Date(selectedResult.completedAt).toLocaleString()}</p></div>
             </div>
-            <button
-              onClick={() => setSelectedResult(null)}
-              className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
-            >
-              Close
-            </button>
+            <button onClick={() => setSelectedResult(null)} className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">Close</button>
           </div>
         </div>
       )}
