@@ -94,68 +94,118 @@ export default function ResultsPage() {
   };
 
   // ========== EXCEL EXPORT ==========
-  const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
-    if (filtered.length === 0) {
-      toast.error('No results to export');
-      return;
-    }
+ // ========== EXCEL EXPORT — grouped by Department → Class → Course ==========
+const exportExcel = (scope: 'all' | 'filtered' | 'by-class') => {
+  if (filtered.length === 0) {
+    toast.error('No results to export');
+    return;
+  }
 
-    const wb = XLSX.utils.book_new();
+  const wb = XLSX.utils.book_new();
+  const dataToExport = scope === 'filtered' ? filtered : results;
 
-    // Build rows
-    const toRow = (r: Result) => ({
-      Department: r.department,
-      Class: r.className || '—',
-      'Student Name': r.studentName,
-      Username: r.studentUsername,
-      'Course Code': r.courseCode,
-      'Course Name': r.courseName,
-      Score: r.score,
-      'Total Questions': r.totalQuestions,
-      'Correct Answers': r.correctAnswers,
-      'Incorrect Answers': r.incorrectAnswers,
-      'Percentage (%)': r.percentage,
-      'Time Spent (min)': r.timeSpent || 0,
-      Violations: r.violations || 0,
-      'Completed At': new Date(r.completedAt).toLocaleString(),
+  // Row shape used inside every sheet
+  const toRow = (r: Result) => ({
+    Department: r.department,
+    Class: r.className || '—',
+    Course: `${r.courseName} (${r.courseCode})`,
+    'Student Name': r.studentName,
+    Username: r.studentUsername,
+    Score: r.score,
+    'Total Questions': r.totalQuestions,
+    'Correct Answers': r.correctAnswers,
+    'Incorrect Answers': r.incorrectAnswers,
+    'Percentage (%)': r.percentage,
+    'Time Spent (min)': r.timeSpent || 0,
+    Violations: r.violations || 0,
+    'Completed At': new Date(r.completedAt).toLocaleString(),
+  });
+
+  const header = Object.keys(toRow(dataToExport[0]));
+
+  // Group: Department → Class → Course → rows
+  const group = (rows: Result[]) => {
+    const out: Record<string, Record<string, Record<string, Result[]>>> = {};
+    rows.forEach((r) => {
+      const dept = r.department || 'Unassigned';
+      const cls = r.className || 'Unassigned';
+      const course = `${r.courseName} (${r.courseCode})`;
+      out[dept] = out[dept] || {};
+      out[dept][cls] = out[dept][cls] || {};
+      out[dept][cls][course] = out[dept][cls][course] || [];
+      out[dept][cls][course].push(r);
+    });
+    return out;
+  };
+
+  // Build a grouped sheet
+  const buildSheet = (rows: Result[]) => {
+    const grouped = group(rows);
+    const data: any[][] = [];
+
+    data.push([`Results export — ${new Date().toLocaleDateString()}`]);
+    data.push([]);
+    data.push(header);
+
+    Object.entries(grouped).forEach(([dept, classes]) => {
+      data.push([`DEPARTMENT: ${dept}`]);
+
+      Object.entries(classes).forEach(([cls, courses]) => {
+        data.push([`  CLASS: ${cls}`]);
+
+        Object.entries(courses).forEach(([course, courseRows]) => {
+          data.push([`    COURSE: ${course}`]);
+          courseRows.forEach((r) => data.push(Object.values(toRow(r))));
+
+          const avg =
+            courseRows.reduce((a, b) => a + b.percentage, 0) / courseRows.length;
+          data.push([
+            '',
+            '',
+            '',
+            `Sub-total: ${courseRows.length} student(s)`,
+            '',
+            '',
+            '',
+            '',
+            '',
+            `Avg: ${avg.toFixed(1)}%`,
+          ]);
+          data.push([]);
+        });
+      });
+      data.push([]);
     });
 
-    const dataToExport = scope === 'filtered' ? filtered : results;
-    const header = Object.keys(toRow(dataToExport[0]));
-
-    if (scope === 'by-class') {
-      // One sheet per class
-      const grouped: Record<string, Result[]> = {};
-      dataToExport.forEach((r) => {
-        const key = r.className || 'Unassigned';
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(r);
-      });
-
-      Object.entries(grouped).forEach(([className, rows]) => {
-        const sheetRows = [header, ...rows.map((r) => Object.values(toRow(r)))];
-        const ws = XLSX.utils.aoa_to_sheet(sheetRows);
-        // Sheet names must be <= 31 chars
-        const sheetName = className.substring(0, 31) || 'Class';
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      });
-    } else {
-      // Single sheet
-      const sheetRows = [header, ...dataToExport.map((r) => Object.values(toRow(r)))];
-      const ws = XLSX.utils.aoa_to_sheet(sheetRows);
-      XLSX.utils.book_append_sheet(wb, ws, 'Results');
-    }
-
-    const filename =
-      scope === 'by-class'
-        ? `results_by_class_${new Date().toISOString().slice(0, 10)}.xlsx`
-        : scope === 'filtered'
-          ? `results_filtered_${new Date().toISOString().slice(0, 10)}.xlsx`
-          : `results_all_${new Date().toISOString().slice(0, 10)}.xlsx`;
-
-    XLSX.writeFile(wb, filename);
-    toast.success('Excel file downloaded');
+    return XLSX.utils.aoa_to_sheet(data);
   };
+
+  if (scope === 'by-class') {
+    // One sheet per class
+    const byClass: Record<string, Result[]> = {};
+    dataToExport.forEach((r) => {
+      const key = r.className || 'Unassigned';
+      byClass[key] = byClass[key] || [];
+      byClass[key].push(r);
+    });
+
+    Object.entries(byClass).forEach(([cls, rows]) => {
+      XLSX.utils.book_append_sheet(wb, buildSheet(rows), cls.substring(0, 31) || 'Class');
+    });
+  } else {
+    XLSX.utils.book_append_sheet(wb, buildSheet(dataToExport), 'Results');
+  }
+
+  const filename =
+    scope === 'by-class'
+      ? `results_by_class_${new Date().toISOString().slice(0, 10)}.xlsx`
+      : scope === 'filtered'
+        ? `results_filtered_${new Date().toISOString().slice(0, 10)}.xlsx`
+        : `results_all_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+  XLSX.writeFile(wb, filename);
+  toast.success('Excel file downloaded');
+};
 
   const getPercentageColor = (percentage: number) => {
     if (percentage >= 80) return 'text-green-600 bg-green-100';
